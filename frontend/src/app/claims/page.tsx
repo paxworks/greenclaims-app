@@ -92,9 +92,16 @@ function ClaimsPage() {
 
   const [claims, setClaims] = useState<Claim[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ClaimStatus | "all">("all");
-  const [riskFilter, setRiskFilter] = useState<RiskTier | "all">("all");
-  const [search, setSearch] = useState("");
+  // Pre-filtered on load via ?status=/?risk=/?q= — the Dashboard's stat
+  // cards, chart segments, and top-products list link here that way,
+  // rather than only being able to describe a filtered view in words.
+  const [statusFilter, setStatusFilter] = useState<ClaimStatus | "all">(
+    (params.get("status") as ClaimStatus | null) || "all"
+  );
+  const [riskFilter, setRiskFilter] = useState<RiskTier | "all">(
+    (params.get("risk") as RiskTier | null) || "all"
+  );
+  const [search, setSearch] = useState(params.get("q") || "");
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
     null

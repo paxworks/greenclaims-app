@@ -50,17 +50,11 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
-function shopifyViewUrl(claim: Claim, shop: string): string | null {
-  if (claim.shopify_product_id) {
-    return `https://${shop}/admin/products/${claim.shopify_product_id}`;
-  }
-  if (claim.content_type === "page" && claim.shopify_content_id) {
-    return `https://${shop}/admin/pages/${claim.shopify_content_id}`;
-  }
-  if (claim.content_type === "article" && claim.shopify_content_id && claim.shopify_blog_id) {
-    return `https://${shop}/admin/blogs/${claim.shopify_blog_id}/articles/${claim.shopify_content_id}`;
-  }
-  return null;
+function withFilter(qs: string, extra: Record<string, string>): string {
+  const params = new URLSearchParams(qs.startsWith("?") ? qs.slice(1) : qs);
+  for (const [k, v] of Object.entries(extra)) params.set(k, v);
+  const s = params.toString();
+  return s ? `?${s}` : "";
 }
 
 function Donut({
@@ -104,22 +98,27 @@ function Donut({
 function DonutLegend({
   segments,
 }: {
-  segments: { label: string; value: number; color: string }[];
+  segments: { label: string; value: number; color: string; href: string }[];
 }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   return (
     <ul className="space-y-1.5 text-sm">
       {segments.map((s) => (
-        <li key={s.label} className="flex items-center gap-2">
-          <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: s.color }}
-          />
-          <span className="flex-1 text-gray-700">{s.label}</span>
-          <span className="font-medium text-gray-900">{s.value}</span>
-          <span className="w-10 text-right text-xs text-gray-400">
-            {total > 0 ? Math.round((s.value / total) * 100) : 0}%
-          </span>
+        <li key={s.label}>
+          <Link
+            href={s.href}
+            className="flex items-center gap-2 rounded px-1 -mx-1 hover:bg-gray-50"
+          >
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: s.color }}
+            />
+            <span className="flex-1 text-gray-700 hover:underline">{s.label}</span>
+            <span className="font-medium text-gray-900">{s.value}</span>
+            <span className="w-10 text-right text-xs text-gray-400">
+              {total > 0 ? Math.round((s.value / total) * 100) : 0}%
+            </span>
+          </Link>
         </li>
       ))}
     </ul>
@@ -129,21 +128,19 @@ function DonutLegend({
 function BarList({
   items,
 }: {
-  items: { label: string; value: number; href: string | null }[];
+  items: { label: string; value: number; href: string }[];
 }) {
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
     <div className="space-y-2.5">
       {items.map((item, i) => (
-        <div key={`${item.label}-${i}`} className="flex items-center gap-3 text-sm">
-          <div className="w-36 shrink-0 truncate text-gray-700" title={item.label}>
-            {item.href ? (
-              <a href={item.href} target="_blank" rel="noreferrer" className="hover:underline">
-                {item.label}
-              </a>
-            ) : (
-              item.label
-            )}
+        <Link
+          key={`${item.label}-${i}`}
+          href={item.href}
+          className="flex items-center gap-3 rounded px-1 -mx-1 text-sm hover:bg-gray-50"
+        >
+          <div className="w-36 shrink-0 truncate text-gray-700 hover:underline" title={item.label}>
+            {item.label}
           </div>
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
             <div
@@ -152,18 +149,21 @@ function BarList({
             />
           </div>
           <div className="w-6 shrink-0 text-right text-gray-500">{item.value}</div>
-        </div>
+        </Link>
       ))}
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, href }: { label: string; value: number; href: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
+    <Link
+      href={href}
+      className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-[#008060] hover:shadow-sm"
+    >
       <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
-    </div>
+    </Link>
   );
 }
 
@@ -231,8 +231,9 @@ function DashboardPage() {
       label: RISK_LABELS[tier],
       value: counts[tier],
       color: RISK_COLORS[tier],
+      href: `/claims${withFilter(qs, { risk: tier })}`,
     }));
-  }, [claims]);
+  }, [claims, qs]);
 
   const statusSegments = useMemo(() => {
     const counts: Record<Claim["status"], number> = {
@@ -245,18 +246,19 @@ function DashboardPage() {
       label: STATUS_LABELS[status],
       value: counts[status],
       color: STATUS_COLORS[status],
+      href: `/claims${withFilter(qs, { status })}`,
     }));
-  }, [claims]);
+  }, [claims, qs]);
 
   const topProducts = useMemo(() => {
     if (!claims || !shop) return [];
-    const byKey = new Map<string, { title: string; count: number; claim: Claim }>();
+    const byKey = new Map<string, { title: string; count: number }>();
     for (const c of claims) {
       const key = c.product_id || c.content_item_id || c.id;
       const title = c.product_title || c.content_item_title || "Untitled";
       const existing = byKey.get(key);
       if (existing) existing.count++;
-      else byKey.set(key, { title, count: 1, claim: c });
+      else byKey.set(key, { title, count: 1 });
     }
     return Array.from(byKey.values())
       .sort((a, b) => b.count - a.count)
@@ -264,9 +266,9 @@ function DashboardPage() {
       .map((entry) => ({
         label: entry.title,
         value: entry.count,
-        href: shopifyViewUrl(entry.claim, shop),
+        href: `/claims${withFilter(qs, { q: entry.title })}`,
       }));
-  }, [claims, shop]);
+  }, [claims, shop, qs]);
 
   const evidenceStats = useMemo(() => {
     const docs = evidenceDocs ?? [];
@@ -375,16 +377,22 @@ function DashboardPage() {
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Total claims" value={claims?.length ?? 0} />
+            <StatCard label="Total claims" value={claims?.length ?? 0} href={`/claims${qs}`} />
             <StatCard
               label="Banned"
               value={riskSegments.find((s) => s.label === "Banned")?.value ?? 0}
+              href={`/claims${withFilter(qs, { risk: "banned" })}`}
             />
             <StatCard
               label="Substantiated"
               value={statusSegments.find((s) => s.label === "Substantiated")?.value ?? 0}
+              href={`/claims${withFilter(qs, { status: "substantiated" })}`}
             />
-            <StatCard label="Evidence documents" value={evidenceStats.total} />
+            <StatCard
+              label="Evidence documents"
+              value={evidenceStats.total}
+              href={`/evidence${qs}`}
+            />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
