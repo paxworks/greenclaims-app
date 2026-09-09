@@ -1,10 +1,11 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { api, ApiError, type EvidenceDocument } from "@/lib/api";
+import { getExpiryStatus } from "@/lib/expiry";
 
 const DOC_TYPES = [
   { value: "certificate", label: "Certificate" },
@@ -12,6 +13,19 @@ const DOC_TYPES = [
   { value: "lca", label: "LCA report" },
   { value: "other", label: "Other" },
 ];
+
+function ExpiryLabel({ expiresAt }: { expiresAt: string | null }) {
+  if (!expiresAt) return <span className="text-gray-500">—</span>;
+  const status = getExpiryStatus(expiresAt);
+  const date = new Date(expiresAt).toLocaleDateString();
+  if (status === "expired") {
+    return <span className="font-medium text-[#8e1f0b]">{date} (expired)</span>;
+  }
+  if (status === "expiring_soon") {
+    return <span className="font-medium text-[#8a5700]">{date} (soon)</span>;
+  }
+  return <span className="text-gray-500">{date}</span>;
+}
 
 function EvidenceVault() {
   const shop = useSearchParams().get("shop");
@@ -22,6 +36,23 @@ function EvidenceVault() {
   const [uploading, setUploading] = useState(false);
   const [docType, setDocType] = useState("certificate");
   const [expiresAt, setExpiresAt] = useState("");
+
+  const sortedDocs = useMemo(() => {
+    if (!docs) return null;
+    // Soonest-expiring first (undated docs last) — the whole point is
+    // surfacing what needs attention without a merchant having to scan a
+    // long, unsorted list for it.
+    return [...docs].sort((a, b) => {
+      if (!a.expires_at && !b.expires_at) return 0;
+      if (!a.expires_at) return 1;
+      if (!b.expires_at) return -1;
+      return new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime();
+    });
+  }, [docs]);
+
+  const expiredCount = docs?.filter((d) => getExpiryStatus(d.expires_at) === "expired").length ?? 0;
+  const expiringSoonCount =
+    docs?.filter((d) => getExpiryStatus(d.expires_at) === "expiring_soon").length ?? 0;
 
   const load = useCallback(async () => {
     try {
@@ -82,6 +113,23 @@ function EvidenceVault() {
       </p>
 
       {error && <ErrorBanner message={error} />}
+
+      {(expiredCount > 0 || expiringSoonCount > 0) && (
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {expiredCount > 0 && (
+            <p>
+              {expiredCount} document{expiredCount === 1 ? "" : "s"} expired — any claim relying
+              solely on {expiredCount === 1 ? "it" : "them"} has reverted to unsubstantiated.
+            </p>
+          )}
+          {expiringSoonCount > 0 && (
+            <p className={expiredCount > 0 ? "mt-1" : ""}>
+              {expiringSoonCount} document{expiringSoonCount === 1 ? "" : "s"} expiring within 30
+              days.
+            </p>
+          )}
+        </div>
+      )}
 
       <form
         onSubmit={handleUpload}
@@ -146,15 +194,15 @@ function EvidenceVault() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {docs.map((doc) => (
+              {(sortedDocs ?? docs).map((doc) => (
                 <tr key={doc.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{doc.file_name}</td>
                   <td className="px-4 py-3 text-gray-600">{doc.doc_type}</td>
                   <td className="px-4 py-3 text-gray-500">
                     {new Date(doc.uploaded_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {doc.expires_at ? new Date(doc.expires_at).toLocaleDateString() : "—"}
+                  <td className="px-4 py-3">
+                    <ExpiryLabel expiresAt={doc.expires_at} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button

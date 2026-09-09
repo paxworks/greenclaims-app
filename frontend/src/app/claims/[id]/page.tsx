@@ -8,6 +8,7 @@ import { RiskBadge, StatusBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { useShopQuery } from "@/lib/useShopQuery";
 import { api, ApiError, type Claim, type EvidenceDocument } from "@/lib/api";
+import { getExpiryStatus } from "@/lib/expiry";
 
 const DOC_TYPES = [
   { value: "certificate", label: "Certificate" },
@@ -155,8 +156,18 @@ function ClaimDetail() {
                   <span className="font-medium text-gray-900">{doc.file_name}</span>
                   <span className="ml-2 text-gray-500">({doc.doc_type})</span>
                   {doc.expires_at && (
-                    <span className="ml-2 text-xs text-gray-400">
+                    <span
+                      className={`ml-2 text-xs ${
+                        getExpiryStatus(doc.expires_at) === "expired"
+                          ? "font-medium text-[#8e1f0b]"
+                          : getExpiryStatus(doc.expires_at) === "expiring_soon"
+                            ? "font-medium text-[#8a5700]"
+                            : "text-gray-400"
+                      }`}
+                    >
                       expires {new Date(doc.expires_at).toLocaleDateString()}
+                      {getExpiryStatus(doc.expires_at) === "expired" && " (expired)"}
+                      {getExpiryStatus(doc.expires_at) === "expiring_soon" && " (soon)"}
                     </span>
                   )}
                 </div>
