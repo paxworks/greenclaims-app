@@ -1,13 +1,20 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { RiskBadge, StatusBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { useShopQuery } from "@/lib/useShopQuery";
 import { api, ApiError, type Claim, type EvidenceDocument } from "@/lib/api";
+
+const DOC_TYPES = [
+  { value: "certificate", label: "Certificate" },
+  { value: "lab_result", label: "Lab result" },
+  { value: "lca", label: "LCA report" },
+  { value: "other", label: "Other" },
+];
 
 function ClaimDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +26,9 @@ function ClaimDetail() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadDocType, setUploadDocType] = useState("certificate");
+  const [uploadExpiresAt, setUploadExpiresAt] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +54,19 @@ function ClaimDetail() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleUploadAndLink(e: React.FormEvent) {
+    e.preventDefault();
+    const file = fileInputRef.current?.files?.[0];
+    if (!file || !claim) return;
+    await withBusy(async () => {
+      const doc = await api.uploadEvidence(file, uploadDocType, uploadExpiresAt || null);
+      setEvidence((prev) => (prev ? [...prev, doc] : [doc]));
+      setClaim(await api.linkEvidence(claim.id, doc.id));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setUploadExpiresAt("");
+    });
   }
 
   const linkableEvidence = (evidence || []).filter(
@@ -181,13 +204,62 @@ function ClaimDetail() {
             Link
           </button>
         </div>
-        <p className="mt-2 text-xs text-gray-400">
-          Need to upload a new document first?{" "}
-          <Link href={`/evidence${qs}`} className="text-[#008060] hover:underline">
-            Go to the evidence vault
-          </Link>
-          .
-        </p>
+        <div className="mt-4 border-t border-gray-100 pt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Or upload new evidence
+          </p>
+          <form onSubmit={handleUploadAndLink} className="mt-2 flex flex-wrap items-end gap-3">
+            <div className="min-w-[200px] flex-1">
+              <label className="block text-xs font-medium text-gray-500">
+                File (PDF or image, max 10MB)
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp"
+                required
+                className="mt-1 block w-full text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500">Document type</label>
+              <select
+                value={uploadDocType}
+                onChange={(e) => setUploadDocType(e.target.value)}
+                className="mt-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                {DOC_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500">Expires (optional)</label>
+              <input
+                type="date"
+                value={uploadExpiresAt}
+                onChange={(e) => setUploadExpiresAt(e.target.value)}
+                className="mt-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-md bg-[#008060] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
+            >
+              {busy ? "Uploading…" : "Upload & link"}
+            </button>
+          </form>
+          <p className="mt-3 text-xs text-gray-400">
+            Uploaded files are also added to the{" "}
+            <Link href={`/evidence${qs}`} className="text-[#008060] hover:underline">
+              evidence vault
+            </Link>{" "}
+            for reuse on other claims.
+          </p>
+        </div>
       </div>
     </main>
   );
