@@ -33,7 +33,9 @@ function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | "all">("all");
   const [riskFilter, setRiskFilter] = useState<RiskTier | "all">("all");
   const [exporting, setExporting] = useState(false);
-  const [exportResult, setExportResult] = useState<{ url: string; hash: string } | null>(null);
+  const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
+    null
+  );
 
   useEffect(() => {
     if (!shop) return;
@@ -58,7 +60,7 @@ function Dashboard() {
     try {
       const exportRow = await api.createAuditExport();
       const download = await api.downloadAuditExport(exportRow.id);
-      setExportResult({ url: download.url, hash: download.file_hash });
+      setExportResult({ url: download.url, shaSidecarUrl: download.sha256_sidecar_url });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Export failed.");
     } finally {
@@ -96,9 +98,16 @@ function Dashboard() {
           <p className="mt-1 text-[#0c5132]">
             <a href={exportResult.url} className="underline" target="_blank" rel="noreferrer">
               Download CSV
-            </a>{" "}
-            — SHA-256:{" "}
-            <code className="rounded bg-white/60 px-1 py-0.5 text-xs">{exportResult.hash}</code>
+            </a>
+            {" · "}
+            <a
+              href={exportResult.shaSidecarUrl}
+              className="underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Download SHA-256 checksum
+            </a>
           </p>
         </div>
       )}
