@@ -20,7 +20,27 @@ export class ApiError extends Error {
   }
 }
 
+const APP_BRIDGE_READY_TIMEOUT_MS = 4000;
+const APP_BRIDGE_POLL_INTERVAL_MS = 50;
+
+/**
+ * window.shopify is set up asynchronously by the App Bridge script — even
+ * inside a genuinely embedded iframe, it isn't guaranteed to exist the
+ * instant the script tag finishes executing (a documented, known timing
+ * issue, not specific to this app). Poll briefly instead of failing on the
+ * first check, which was wrongly reporting "not embedded" during that
+ * startup window.
+ */
+async function waitForAppBridge(): Promise<void> {
+  const start = Date.now();
+  while (!(typeof window !== "undefined" && window.shopify?.idToken)) {
+    if (Date.now() - start > APP_BRIDGE_READY_TIMEOUT_MS) return;
+    await new Promise((resolve) => setTimeout(resolve, APP_BRIDGE_POLL_INTERVAL_MS));
+  }
+}
+
 async function getSessionToken(): Promise<string> {
+  await waitForAppBridge();
   if (typeof window !== "undefined" && window.shopify?.idToken) {
     return window.shopify.idToken();
   }
