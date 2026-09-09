@@ -102,6 +102,10 @@ function ClaimsPage() {
     (params.get("risk") as RiskTier | null) || "all"
   );
   const [search, setSearch] = useState(params.get("q") || "");
+  // Exact-match, not folded into the free-text search — a category name
+  // could otherwise coincidentally substring-match an unrelated matched
+  // phrase or product title.
+  const [categoryFilter, setCategoryFilter] = useState(params.get("category") || "");
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
     null
@@ -176,16 +180,20 @@ function ClaimsPage() {
       (c) =>
         (statusFilter === "all" || c.status === statusFilter) &&
         (riskFilter === "all" || c.risk_tier === riskFilter) &&
+        (!categoryFilter ||
+          (categoryFilter === "__uncategorized__"
+            ? !c.category_full_name
+            : c.category_full_name === categoryFilter)) &&
         (!query ||
           (c.product_title || c.content_item_title || "").toLowerCase().includes(query) ||
           c.matched_phrase.toLowerCase().includes(query))
     );
-  }, [claims, statusFilter, riskFilter, search]);
+  }, [claims, statusFilter, riskFilter, categoryFilter, search]);
 
   useEffect(() => {
     setPage(1);
     setSelectedIds(new Set());
-  }, [statusFilter, riskFilter, search, pageSize]);
+  }, [statusFilter, riskFilter, categoryFilter, search, pageSize]);
 
   function toggleClaimSelected(claimId: string) {
     setSelectedIds((prev) => {
@@ -491,6 +499,23 @@ function ClaimsPage() {
       )}
 
       {error && <ErrorBanner message={error} />}
+
+      {categoryFilter && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+          <span>
+            Filtering by category:{" "}
+            <span className="font-medium text-gray-900">
+              {categoryFilter === "__uncategorized__" ? "Uncategorized" : categoryFilter}
+            </span>
+          </span>
+          <button
+            onClick={() => setCategoryFilter("")}
+            className="text-xs font-medium text-[#008060] hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 flex gap-3">
         <input

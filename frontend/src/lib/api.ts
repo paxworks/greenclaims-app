@@ -95,6 +95,7 @@ export interface Claim {
   product_id: string | null;
   product_title: string | null;
   shopify_product_id: string | null;
+  category_full_name: string | null;
   content_item_id: string | null;
   content_item_title: string | null;
   shopify_content_id: string | null;

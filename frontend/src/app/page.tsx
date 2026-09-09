@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
@@ -57,38 +57,96 @@ function withFilter(qs: string, extra: Record<string, string>): string {
   return s ? `?${s}` : "";
 }
 
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function donutArcPath(
+  cx: number,
+  cy: number,
+  outerR: number,
+  innerR: number,
+  startAngle: number,
+  endAngle: number
+) {
+  const startOuter = polarToCartesian(cx, cy, outerR, endAngle);
+  const endOuter = polarToCartesian(cx, cy, outerR, startAngle);
+  const startInner = polarToCartesian(cx, cy, innerR, endAngle);
+  const endInner = polarToCartesian(cx, cy, innerR, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
+  return [
+    "M", startOuter.x, startOuter.y,
+    "A", outerR, outerR, 0, largeArc, 0, endOuter.x, endOuter.y,
+    "L", endInner.x, endInner.y,
+    "A", innerR, innerR, 0, largeArc, 1, startInner.x, startInner.y,
+    "Z",
+  ].join(" ");
+}
+
+// SVG rather than a CSS conic-gradient so each wedge is its own element —
+// needed to make segments individually clickable, not just their legend row.
 function Donut({
   segments,
   size = 128,
 }: {
-  segments: { label: string; value: number; color: string }[];
+  segments: { label: string; value: number; color: string; href: string }[];
   size?: number;
 }) {
+  const router = useRouter();
   const total = segments.reduce((sum, s) => sum + s.value, 0);
-  const gradient =
-    total === 0
-      ? "#f1f2f4"
-      : (() => {
-          let cumulative = 0;
-          const stops = segments
-            .filter((s) => s.value > 0)
-            .map((s) => {
-              const start = (cumulative / total) * 360;
-              cumulative += s.value;
-              const end = (cumulative / total) * 360;
-              return `${s.color} ${start}deg ${end}deg`;
-            });
-          return `conic-gradient(${stops.join(", ")})`;
-        })();
+  const cx = 50;
+  const cy = 50;
+  const outerR = 45;
+  const innerR = 27;
+
+  let cumulative = 0;
+  const nonZero = segments.filter((s) => s.value > 0);
 
   return (
-    <div
-      className="relative shrink-0 rounded-full"
-      style={{ width: size, height: size, background: gradient }}
-      role="img"
-      aria-label={segments.map((s) => `${s.label}: ${s.value}`).join(", ")}
-    >
-      <div className="absolute inset-[18%] flex items-center justify-center rounded-full bg-white text-lg font-semibold text-gray-900">
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg
+        viewBox="0 0 100 100"
+        width={size}
+        height={size}
+        role="img"
+        aria-label={segments.map((s) => `${s.label}: ${s.value}`).join(", ")}
+      >
+        {total === 0 ? (
+          <circle cx={cx} cy={cy} r={(outerR + innerR) / 2} fill="none" stroke="#f1f2f4" strokeWidth={outerR - innerR} />
+        ) : nonZero.length === 1 ? (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={(outerR + innerR) / 2}
+            fill="none"
+            stroke={nonZero[0].color}
+            strokeWidth={outerR - innerR}
+            className="cursor-pointer transition-opacity hover:opacity-80"
+            onClick={() => router.push(nonZero[0].href)}
+          >
+            <title>{`${nonZero[0].label}: ${nonZero[0].value}`}</title>
+          </circle>
+        ) : (
+          nonZero.map((s) => {
+            const start = (cumulative / total) * 360;
+            cumulative += s.value;
+            const end = (cumulative / total) * 360;
+            return (
+              <path
+                key={s.label}
+                d={donutArcPath(cx, cy, outerR, innerR, start, end)}
+                fill={s.color}
+                className="cursor-pointer transition-opacity hover:opacity-80"
+                onClick={() => router.push(s.href)}
+              >
+                <title>{`${s.label}: ${s.value}`}</title>
+              </path>
+            );
+          })
+        )}
+      </svg>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-lg font-semibold text-gray-900">
         {total}
       </div>
     </div>
@@ -250,23 +308,23 @@ function DashboardPage() {
     }));
   }, [claims, qs]);
 
-  const topProducts = useMemo(() => {
+  const topCategories = useMemo(() => {
     if (!claims || !shop) return [];
-    const byKey = new Map<string, { title: string; count: number }>();
+    const UNCATEGORIZED = "__uncategorized__";
+    const counts = new Map<string, number>();
     for (const c of claims) {
-      const key = c.product_id || c.content_item_id || c.id;
-      const title = c.product_title || c.content_item_title || "Untitled";
-      const existing = byKey.get(key);
-      if (existing) existing.count++;
-      else byKey.set(key, { title, count: 1 });
+      // Only products carry a category — blog/page claims have none and
+      // fall into "Uncategorized" alongside products without one set.
+      const key = c.category_full_name || UNCATEGORIZED;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    return Array.from(byKey.values())
-      .sort((a, b) => b.count - a.count)
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map((entry) => ({
-        label: entry.title,
-        value: entry.count,
-        href: `/claims${withFilter(qs, { q: entry.title })}`,
+      .map(([category, count]) => ({
+        label: category === UNCATEGORIZED ? "Uncategorized" : category,
+        value: count,
+        href: `/claims${withFilter(qs, { category })}`,
       }));
   }, [claims, shop, qs]);
 
@@ -414,12 +472,12 @@ function DashboardPage() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="rounded-lg border border-gray-200 bg-white p-4">
-              <h2 className="text-sm font-semibold text-gray-900">Most-flagged products</h2>
-              {topProducts.length === 0 ? (
+              <h2 className="text-sm font-semibold text-gray-900">Most-flagged categories</h2>
+              {topCategories.length === 0 ? (
                 <p className="mt-3 text-sm text-gray-500">No claims yet.</p>
               ) : (
                 <div className="mt-3">
-                  <BarList items={topProducts} />
+                  <BarList items={topCategories} />
                 </div>
               )}
             </div>
