@@ -13,6 +13,7 @@ import {
   type AuditExport,
   type Claim,
   type ClaimStatus,
+  type EvidenceDocument,
   type RiskTier,
   type Scan,
 } from "@/lib/api";
@@ -107,6 +108,8 @@ function Dashboard() {
   const [downloadingExportId, setDownloadingExportId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [evidenceDocs, setEvidenceDocs] = useState<EvidenceDocument[] | null>(null);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState("");
 
   useEffect(() => {
     if (!shop) return;
@@ -224,6 +227,47 @@ function Dashboard() {
     (currentPage - 1) * effectivePageSize,
     currentPage * effectivePageSize
   );
+
+  const visibleClaimIds = pagedGroups.flatMap((g) => g.claims.map((c) => c.id));
+  const allVisibleSelected =
+    visibleClaimIds.length > 0 && visibleClaimIds.every((id) => selectedIds.has(id));
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const id of visibleClaimIds) next.delete(id);
+      } else {
+        for (const id of visibleClaimIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  // Lazy-loaded the first time a selection is made, same pattern as past
+  // exports — most sessions won't use bulk evidence-linking, so no need to
+  // fetch the vault on every page load.
+  useEffect(() => {
+    if (selectedIds.size > 0 && evidenceDocs === null) {
+      api.listEvidence().then(setEvidenceDocs).catch(() => {});
+    }
+  }, [selectedIds, evidenceDocs]);
+
+  async function handleBulkLinkEvidence() {
+    if (!selectedEvidenceId) return;
+    setBulkUpdating(true);
+    setError(null);
+    try {
+      await api.bulkLinkEvidence(Array.from(selectedIds), selectedEvidenceId);
+      setSelectedIds(new Set());
+      setSelectedEvidenceId("");
+      setClaims(await api.listClaims());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Bulk evidence link failed.");
+    } finally {
+      setBulkUpdating(false);
+    }
+  }
 
   async function handleExport() {
     setExporting(true);
@@ -468,10 +512,17 @@ function Dashboard() {
 
       <div className="mt-4">{paginationBar}</div>
 
+      {groups.length > 0 && (
+        <label className="mt-4 flex items-center gap-2 text-xs text-gray-500">
+          <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+          Select all visible
+        </label>
+      )}
+
       {selectedIds.size > 0 && (
-        <div className="sticky top-0 z-10 mt-4 flex items-center justify-between rounded-md border border-gray-300 bg-white p-3 text-sm shadow-sm">
-          <span className="font-medium text-gray-700">{selectedIds.size} selected</span>
-          <div className="flex items-center gap-2">
+        <div className="sticky top-0 z-10 mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 bg-white p-3 text-sm shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="font-medium text-gray-700">{selectedIds.size} selected</span>
             <button
               disabled={bulkUpdating}
               onClick={() => handleBulkUpdate("dismissed")}
@@ -492,6 +543,33 @@ function Dashboard() {
               className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50"
             >
               Clear
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedEvidenceId}
+              onChange={(e) => setSelectedEvidenceId(e.target.value)}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              <option value="">
+                {evidenceDocs === null
+                  ? "Loading evidence…"
+                  : evidenceDocs.length === 0
+                    ? "No uploaded evidence — upload some in the vault"
+                    : "Link evidence to all selected…"}
+              </option>
+              {(evidenceDocs ?? []).map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.file_name} ({doc.doc_type})
+                </option>
+              ))}
+            </select>
+            <button
+              disabled={bulkUpdating || !selectedEvidenceId}
+              onClick={handleBulkLinkEvidence}
+              className="rounded-md bg-[#008060] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
+            >
+              Link
             </button>
           </div>
         </div>
