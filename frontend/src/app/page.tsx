@@ -280,10 +280,14 @@ function Dashboard() {
                     <tr key={claim.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5 text-gray-700">{claim.matched_phrase}</td>
                       <td className="px-4 py-2.5">
-                        <RiskBadge risk={claim.risk_tier} />
+                        <span className="-ml-2.5 inline-block">
+                          <RiskBadge risk={claim.risk_tier} />
+                        </span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <StatusBadge status={claim.status} />
+                        <span className="-ml-2.5 inline-block">
+                          <StatusBadge status={claim.status} />
+                        </span>
                       </td>
                       <td className="px-4 py-2.5 text-gray-500">{claim.evidence.length}</td>
                       <td className="px-4 py-2.5 text-right">
