@@ -122,6 +122,25 @@ export interface AuditExport {
   requested_by: string | null;
 }
 
+export interface TermOut {
+  phrase: string;
+  term_category: string;
+  risk_tier: string;
+}
+
+export interface CustomTerm {
+  id: string;
+  phrase: string;
+  risk_tier: "needs_substantiation" | "caution";
+  created_at: string;
+}
+
+export interface TermList {
+  core_terms: TermOut[];
+  ambiguous_terms: TermOut[];
+  custom_terms: CustomTerm[];
+}
+
 // ── API ──────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -167,4 +186,13 @@ export const api = {
     request<{ url: string; sha256_sidecar_url: string; file_hash: string }>(
       `/audit-exports/${id}/download`
     ),
+
+  getTermList: () => request<TermList>("/settings/term-list"),
+  addCustomTerm: (phrase: string, riskTier: "needs_substantiation" | "caution") =>
+    jsonRequest<CustomTerm>("/settings/custom-terms", "POST", {
+      phrase,
+      risk_tier: riskTier,
+    }),
+  deleteCustomTerm: (id: string) =>
+    request<void>(`/settings/custom-terms/${id}`, { method: "DELETE" }),
 };

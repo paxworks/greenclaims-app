@@ -1,0 +1,248 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Nav } from "@/components/Nav";
+import { RiskBadge } from "@/components/Badge";
+import { EmptyState, ErrorBanner } from "@/components/Feedback";
+import { api, ApiError, type RiskTier, type TermList } from "@/lib/api";
+
+const CUSTOM_TIER_OPTIONS: { value: "needs_substantiation" | "caution"; label: string }[] = [
+  { value: "needs_substantiation", label: "Needs substantiation" },
+  { value: "caution", label: "Caution (manual review only)" },
+];
+
+function SettingsPage() {
+  const shop = useSearchParams().get("shop");
+
+  const [terms, setTerms] = useState<TermList | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [newPhrase, setNewPhrase] = useState("");
+  const [newTier, setNewTier] = useState<"needs_substantiation" | "caution">("caution");
+
+  const load = useCallback(async () => {
+    try {
+      setTerms(await api.getTermList());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to load the term list.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (shop) load();
+  }, [shop, load]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newPhrase.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.addCustomTerm(newPhrase.trim(), newTier);
+      setNewPhrase("");
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not add that term.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setError(null);
+    try {
+      await api.deleteCustomTerm(id);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not remove that term.");
+    }
+  }
+
+  if (!shop) return <EmptyState message="No shop context — open this app from your Shopify admin." />;
+
+  return (
+    <main className="mx-auto max-w-3xl px-6 py-8">
+      <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
+      <p className="mt-1 text-sm text-gray-500">
+        How claim detection works, and your store&rsquo;s own flagged terms.
+      </p>
+
+      {error && <ErrorBanner message={error} />}
+
+      <section className="mt-6 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-700">
+        <h2 className="text-sm font-semibold text-gray-900">How flagging works</h2>
+        <p className="mt-2">
+          Every synced product, blog article, and page is scanned against a fixed list of
+          environmental terms. A claim is created the first time a phrase is found — editing
+          the copy later doesn&rsquo;t remove an existing claim, since a merchant may already be
+          substantiating it.
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li>
+            <span className="font-medium text-[#8e1f0b]">Banned</span> — phrases the EU bans
+            outright (e.g. &ldquo;carbon neutral&rdquo;, &ldquo;net zero&rdquo;), because they
+            rely on carbon offsetting rather than an actual reduction in emissions. These can
+            never be substantiated away — the copy itself needs to change.
+          </li>
+          <li>
+            <span className="font-medium text-[#8a5700]">Needs substantiation</span> — a genuine
+            environmental claim (e.g. &ldquo;eco-friendly&rdquo;, &ldquo;sustainable&rdquo;) that
+            is legal to make, but only if you can back it up. Link evidence (a certificate, lab
+            result, or LCA report) to move it to &ldquo;substantiated&rdquo;.
+          </li>
+          <li>
+            <span className="font-medium text-[#5c5f62]">Caution</span> — an ambiguous word
+            (&ldquo;green&rdquo;, &ldquo;natural&rdquo;, &ldquo;clean&rdquo;,
+            &ldquo;responsible&rdquo;) that often isn&rsquo;t an environmental claim at all (a
+            colour, a material, a marketing phrase). It only escalates to &ldquo;needs
+            substantiation&rdquo; when an environmental word (&ldquo;carbon&rdquo;,
+            &ldquo;organic&rdquo;, &ldquo;emission&rdquo;, etc.) appears nearby in the same copy
+            — otherwise it&rsquo;s left for manual review rather than treated as a real claim.
+          </li>
+        </ul>
+        <p className="mt-3 text-xs text-gray-500">
+          The core list below is fixed and can&rsquo;t be edited or removed — it reflects actual
+          EU regulatory requirements, so weakening it would defeat the point of the app. You can
+          add your own terms underneath it (brand language, industry-specific phrases) to extend
+          detection for your store.
+        </p>
+      </section>
+
+      {terms === null && !error ? (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          Loading…
+        </div>
+      ) : terms ? (
+        <>
+          <section className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+              <span className="text-sm font-semibold text-gray-900">
+                Fixed term list (EU-mandated, read-only)
+              </span>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-2">Phrase</th>
+                  <th className="px-4 py-2">Risk</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {terms.core_terms.map((t) => (
+                  <tr key={t.phrase}>
+                    <td className="px-4 py-2 text-gray-700">{t.phrase}</td>
+                    <td className="px-4 py-2">
+                      <RiskBadge risk={t.risk_tier as RiskTier} />
+                    </td>
+                  </tr>
+                ))}
+                {terms.ambiguous_terms.map((t) => (
+                  <tr key={t.phrase}>
+                    <td className="px-4 py-2 text-gray-700">{t.phrase}</td>
+                    <td className="px-4 py-2 text-xs text-gray-500">
+                      Needs substantiation or caution, depending on context
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+              <span className="text-sm font-semibold text-gray-900">Your custom terms</span>
+            </div>
+
+            {terms.custom_terms.length === 0 ? (
+              <div className="p-6 text-center text-sm text-gray-500">
+                No custom terms yet — add one below.
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2">Phrase</th>
+                    <th className="px-4 py-2">Risk</th>
+                    <th className="px-4 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {terms.custom_terms.map((t) => (
+                    <tr key={t.id}>
+                      <td className="px-4 py-2 text-gray-700">{t.phrase}</td>
+                      <td className="px-4 py-2">
+                        <RiskBadge risk={t.risk_tier} />
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          className="text-xs text-gray-500 hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <form
+              onSubmit={handleAdd}
+              className="flex flex-wrap items-end gap-3 border-t border-gray-100 p-4"
+            >
+              <div className="min-w-[200px] flex-1">
+                <label className="block text-xs font-medium text-gray-500">Phrase</label>
+                <input
+                  type="text"
+                  value={newPhrase}
+                  onChange={(e) => setNewPhrase(e.target.value)}
+                  placeholder="e.g. ecoweave"
+                  required
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500">Risk tier</label>
+                <select
+                  value={newTier}
+                  onChange={(e) =>
+                    setNewTier(e.target.value as "needs_substantiation" | "caution")
+                  }
+                  className="mt-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                >
+                  {CUSTOM_TIER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={busy}
+                className="rounded-md bg-[#008060] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
+              >
+                {busy ? "Adding…" : "Add term"}
+              </button>
+            </form>
+            <p className="px-4 pb-4 text-xs text-gray-400">
+              Adding a term re-scans your already-synced catalogue automatically — new claims
+              appear on the Claims page shortly after.
+            </p>
+          </section>
+        </>
+      ) : null}
+    </main>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <Nav />
+      <SettingsPage />
+    </Suspense>
+  );
+}
