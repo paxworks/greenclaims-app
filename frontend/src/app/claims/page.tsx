@@ -647,7 +647,7 @@ function ClaimsPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="-ml-2.5 inline-block">
-                          <StatusBadge status={claim.status} />
+                          <StatusBadge status={claim.status} riskTier={claim.risk_tier} />
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-gray-500">{claim.evidence.length}</td>

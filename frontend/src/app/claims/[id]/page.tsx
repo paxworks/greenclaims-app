@@ -96,7 +96,7 @@ function ClaimDetail() {
           </div>
           <div className="flex gap-2">
             <RiskBadge risk={claim.risk_tier} />
-            <StatusBadge status={claim.status} />
+            <StatusBadge status={claim.status} riskTier={claim.risk_tier} />
           </div>
         </div>
 

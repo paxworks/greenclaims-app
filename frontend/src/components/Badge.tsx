@@ -28,7 +28,13 @@ function badgeClass(extra: string) {
   return `inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${extra}`;
 }
 
-export function StatusBadge({ status }: { status: ClaimStatus }) {
+export function StatusBadge({ status, riskTier }: { status: ClaimStatus; riskTier?: RiskTier }) {
+  // "Unsubstantiated" implies evidence could resolve it — not true for a
+  // banned claim, which can never be substantiated (the copy itself has to
+  // change). Distinct label so it doesn't read as "just needs a cert".
+  if (riskTier === "banned" && status === "unsubstantiated") {
+    return <span className={badgeClass(RISK_STYLES.banned)}>Needs copy change</span>;
+  }
   return <span className={badgeClass(STATUS_STYLES[status])}>{STATUS_LABELS[status]}</span>;
 }
 
