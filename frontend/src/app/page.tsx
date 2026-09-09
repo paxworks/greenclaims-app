@@ -7,7 +7,15 @@ import { Nav } from "@/components/Nav";
 import { RiskBadge, StatusBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { useShopQuery } from "@/lib/useShopQuery";
-import { api, ApiError, type Claim, type ClaimStatus, type RiskTier, type Scan } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type AuditExport,
+  type Claim,
+  type ClaimStatus,
+  type RiskTier,
+  type Scan,
+} from "@/lib/api";
 
 const STATUS_FILTERS: { value: ClaimStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -93,6 +101,9 @@ function Dashboard() {
   const [pageSize, setPageSize] = useState<PageSize>(100);
   const [scan, setScan] = useState<Scan | null | undefined>(undefined);
   const [scanning, setScanning] = useState(false);
+  const [pastExports, setPastExports] = useState<AuditExport[] | null>(null);
+  const [showPastExports, setShowPastExports] = useState(false);
+  const [downloadingExportId, setDownloadingExportId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!shop) return;
@@ -178,10 +189,39 @@ function Dashboard() {
       const exportRow = await api.createAuditExport();
       const download = await api.downloadAuditExport(exportRow.id);
       setExportResult({ url: download.url, shaSidecarUrl: download.sha256_sidecar_url });
+      if (pastExports) setPastExports([exportRow, ...pastExports]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Export failed.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleTogglePastExports() {
+    const next = !showPastExports;
+    setShowPastExports(next);
+    if (next && pastExports === null) {
+      try {
+        setPastExports(await api.listAuditExports());
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Could not load past exports.");
+      }
+    }
+  }
+
+  // Presigned URLs expire quickly (5 minutes), so a past export's download
+  // link can't just be stored from the list response — fetch a fresh one
+  // at click time, same as the evidence vault does.
+  async function handleDownloadPastExport(id: string, which: "csv" | "sha256") {
+    setDownloadingExportId(id);
+    setError(null);
+    try {
+      const download = await api.downloadAuditExport(id);
+      window.open(which === "csv" ? download.url : download.sha256_sidecar_url, "_blank");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not generate a download link.");
+    } finally {
+      setDownloadingExportId(null);
     }
   }
 
@@ -291,6 +331,61 @@ function Dashboard() {
               Download SHA-256 checksum
             </a>
           </p>
+        </div>
+      )}
+
+      <div className="mt-2">
+        <button
+          onClick={handleTogglePastExports}
+          className="text-xs font-medium text-[#008060] hover:underline"
+        >
+          {showPastExports ? "Hide past exports" : "Show past exports"}
+        </button>
+      </div>
+
+      {showPastExports && (
+        <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-white">
+          {pastExports === null ? (
+            <div className="p-4 text-center text-sm text-gray-500">Loading…</div>
+          ) : pastExports.length === 0 ? (
+            <div className="p-4 text-center text-sm text-gray-500">No exports generated yet.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-2">Generated</th>
+                  <th className="px-4 py-2">SKUs</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pastExports.map((exp) => (
+                  <tr key={exp.id}>
+                    <td className="px-4 py-2 text-gray-700">
+                      {new Date(exp.generated_at).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">{exp.sku_count}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        disabled={downloadingExportId === exp.id}
+                        onClick={() => handleDownloadPastExport(exp.id, "csv")}
+                        className="mr-3 text-xs font-medium text-[#008060] hover:underline disabled:opacity-50"
+                      >
+                        Download CSV
+                      </button>
+                      <button
+                        disabled={downloadingExportId === exp.id}
+                        onClick={() => handleDownloadPastExport(exp.id, "sha256")}
+                        className="text-xs font-medium text-[#008060] hover:underline disabled:opacity-50"
+                      >
+                        SHA-256
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
