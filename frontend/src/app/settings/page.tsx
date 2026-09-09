@@ -234,6 +234,23 @@ function SettingsPage() {
           </section>
         </>
       ) : null}
+
+      <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+        <h2 className="text-sm font-semibold text-amber-900">Data &amp; privacy</h2>
+        <p className="mt-2">
+          Uninstalling this app deletes all associated data — scanned products, claims, uploaded
+          evidence, and audit exports — within 48 hours, per Shopify&rsquo;s mandatory deletion
+          policy. There is no grace period and no exception for uploaded evidence: everything
+          goes in the same purge.
+        </p>
+        <p className="mt-2 font-medium">
+          Download any evidence packs or audit exports you need before uninstalling — once the
+          purge runs, they cannot be recovered.
+        </p>
+        <p className="mt-2 text-xs text-amber-800">
+          Full privacy policy: paxworks.io/greenclaims-privacy (coming in phase 7).
+        </p>
+      </section>
     </main>
   );
 }

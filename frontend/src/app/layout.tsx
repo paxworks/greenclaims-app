@@ -48,17 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="bg-[#f6f6f7]">
-        {children}
-        <footer className="mx-auto max-w-5xl px-6 pb-8 pt-4">
-          <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            Data retention: uninstalling this app deletes all associated data — scanned products,
-            claims, and uploaded evidence — within 48 hours, per Shopify&apos;s mandatory deletion
-            policy. There is no grace period, so download any evidence packs you need before
-            uninstalling. Full privacy policy: paxworks.io/greenclaims-privacy (coming in phase 7).
-          </p>
-        </footer>
-      </body>
+      <body className="bg-[#f6f6f7]">{children}</body>
     </html>
   );
 }
