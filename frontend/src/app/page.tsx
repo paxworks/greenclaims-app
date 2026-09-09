@@ -303,6 +303,14 @@ function DashboardPage() {
         </button>
       </div>
 
+      <p className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        From 27 Sept 2026, EU law (Directive (EU) 2024/825) bans misleading environmental claims
+        — fines can reach 4% of annual turnover.{" "}
+        <Link href={`/settings${qs}`} className="font-medium text-[#008060] hover:underline">
+          Learn more
+        </Link>
+      </p>
+
       {error && <ErrorBanner message={error} />}
 
       {loading ? (

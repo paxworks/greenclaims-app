@@ -71,6 +71,40 @@ function SettingsPage() {
       {error && <ErrorBanner message={error} />}
 
       <section className="mt-6 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-700">
+        <h2 className="text-sm font-semibold text-gray-900">Why this matters</h2>
+        <p className="mt-2">
+          The EU&rsquo;s Empowering Consumers for the Green Transition Directive (Directive (EU)
+          2024/825) applies from 27 September 2026 and bans misleading environmental claims
+          (&ldquo;greenwashing&rdquo;) in commercial communications, including product listings
+          and marketing copy. National consumer authorities can fine non-compliant traders up to
+          4% of annual turnover (or €2 million where turnover isn&rsquo;t available), alongside
+          other remedies such as ordering the claim removed.
+        </p>
+        <p className="mt-2 text-xs text-gray-500">
+          This is general information, not legal advice — it doesn&rsquo;t guarantee regulatory
+          compliance. See the full{" "}
+          <a
+            href="https://paxworks.io/greenclaims-privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            privacy policy
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://paxworks.io/greenclaims-terms"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            terms
+          </a>
+          .
+        </p>
+      </section>
+
+      <section className="mt-4 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-700">
         <h2 className="text-sm font-semibold text-gray-900">How flagging works</h2>
         <p className="mt-2">
           Every synced product, blog article, and page is scanned against a fixed list of
