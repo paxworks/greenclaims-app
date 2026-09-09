@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [build.args]
-NEXT_PUBLIC_SHOPIFY_API_KEY = "placeholder-api-key"
+NEXT_PUBLIC_SHOPIFY_API_KEY = "${{NEXT_PUBLIC_SHOPIFY_API_KEY}}"
 
 [deploy]
 startCommand = "npm run start"
