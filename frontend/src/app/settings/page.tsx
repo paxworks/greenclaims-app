@@ -248,7 +248,15 @@ function SettingsPage() {
           purge runs, they cannot be recovered.
         </p>
         <p className="mt-2 text-xs text-amber-800">
-          Full privacy policy: paxworks.io/greenclaims-privacy (coming in phase 7).
+          Full privacy policy:{" "}
+          <a
+            href="https://paxworks.io/greenclaims-privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            paxworks.io/greenclaims-privacy
+          </a>
         </p>
       </section>
     </main>
