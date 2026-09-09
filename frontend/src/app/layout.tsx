@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,14 +12,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
+        <meta name="shopify-api-key" content={SHOPIFY_API_KEY} />
+        {/*
+          App Bridge enforces this itself and aborts its own init if
+          violated: this must be the literal first <script> tag in the
+          document, plain (no async/defer/type=module), linking directly to
+          Shopify's CDN. next/script's <Script strategy="beforeInteractive">
+          adds `async` under the hood, which made App Bridge silently abort
+          — window.shopify never initialized no matter what else was fixed
+          (CSP, timing, redirect_uri). Must stay a plain native tag.
+        */}
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
         {/*
           Shopify opens the App URL top-level (not inside the admin iframe)
           on first load after install/reinstall — it passes shop/host/hmac
-          but does NOT embed us automatically. App Bridge's global script
-          does not do this redirect on its own; without it, the page loads
-          standalone and window.shopify.idToken() never becomes available.
-          Detect top-level + shop param and bounce into the embedded admin
-          ourselves, before anything else runs.
+          but does NOT embed us automatically. Detect top-level + shop param
+          and bounce into the embedded admin ourselves.
         */}
         <script
           dangerouslySetInnerHTML={{
@@ -40,9 +47,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             `,
           }}
         />
-        {/* App Bridge must load before any other script in the embedded admin iframe. */}
-        <meta name="shopify-api-key" content={SHOPIFY_API_KEY} />
-        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="beforeInteractive" />
       </head>
       <body className="bg-[#f6f6f7]">
         {children}
