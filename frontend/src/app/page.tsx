@@ -23,6 +23,8 @@ const RISK_FILTERS: { value: RiskTier | "all"; label: string }[] = [
   { value: "caution", label: "Caution" },
 ];
 
+const PAGE_SIZE = 100;
+
 function Dashboard() {
   const params = useSearchParams();
   const shop = params.get("shop");
@@ -36,6 +38,7 @@ function Dashboard() {
   const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
     null
   );
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (!shop) return;
@@ -53,6 +56,14 @@ function Dashboard() {
         (riskFilter === "all" || c.risk_tier === riskFilter)
     );
   }, [claims, statusFilter, riskFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, riskFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   async function handleExport() {
     setExporting(true);
@@ -160,7 +171,7 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((claim) => (
+              {paged.map((claim) => (
                 <tr key={claim.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <Link
@@ -184,6 +195,30 @@ function Dashboard() {
           </table>
         )}
       </div>
+
+      {filtered.length > PAGE_SIZE && (
+        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            aria-label="Previous page"
+            className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ←
+          </button>
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            aria-label="Next page"
+            className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            →
+          </button>
+        </div>
+      )}
     </main>
   );
 }
