@@ -8,7 +8,8 @@ import { api } from "@/lib/api";
 import { getExpiryStatus } from "@/lib/expiry";
 
 const TABS = [
-  { href: "/", label: "Claims" },
+  { href: "/", label: "Dashboard" },
+  { href: "/claims", label: "Claims" },
   { href: "/evidence", label: "Evidence vault" },
   { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },

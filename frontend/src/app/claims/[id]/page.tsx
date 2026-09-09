@@ -80,7 +80,7 @@ function ClaimDetail() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
-      <Link href={`/${qs}`} className="text-sm text-[#008060] hover:underline">
+      <Link href={`/claims${qs}`} className="text-sm text-[#008060] hover:underline">
         ← Back to claims
       </Link>
 

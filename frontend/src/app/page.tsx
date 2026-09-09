@@ -4,42 +4,50 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
-import { RiskBadge, StatusBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { useShopQuery } from "@/lib/useShopQuery";
+import { getExpiryStatus } from "@/lib/expiry";
 import {
   api,
   ApiError,
-  type AuditExport,
   type Claim,
-  type ClaimStatus,
   type EvidenceDocument,
   type RiskTier,
   type Scan,
 } from "@/lib/api";
 
-const STATUS_FILTERS: { value: ClaimStatus | "all"; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "unsubstantiated", label: "Unsubstantiated" },
-  { value: "substantiated", label: "Substantiated" },
-  { value: "dismissed", label: "Dismissed" },
-];
+// Same hex values as Badge.tsx, reused here so a colour means the same
+// thing on the dashboard's charts as it does on the Claims table badges.
+const RISK_COLORS: Record<RiskTier, string> = {
+  banned: "#8e1f0b",
+  needs_substantiation: "#8a5700",
+  caution: "#5c5f62",
+};
+const RISK_LABELS: Record<RiskTier, string> = {
+  banned: "Banned",
+  needs_substantiation: "Needs substantiation",
+  caution: "Caution",
+};
+const STATUS_COLORS: Record<Claim["status"], string> = {
+  substantiated: "#0c5132",
+  unsubstantiated: "#8a5700",
+  dismissed: "#5c5f62",
+};
+const STATUS_LABELS: Record<Claim["status"], string> = {
+  substantiated: "Substantiated",
+  unsubstantiated: "Unsubstantiated",
+  dismissed: "Dismissed",
+};
 
-const RISK_FILTERS: { value: RiskTier | "all"; label: string }[] = [
-  { value: "all", label: "All risk levels" },
-  { value: "banned", label: "Banned" },
-  { value: "needs_substantiation", label: "Needs substantiation" },
-  { value: "caution", label: "Caution" },
-];
-
-const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, "all"] as const;
-type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
-
-interface ClaimGroup {
-  key: string;
-  title: string;
-  viewUrl: string | null;
-  claims: Claim[];
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }
 
 function shopifyViewUrl(claim: Claim, shop: string): string | null {
@@ -55,68 +63,125 @@ function shopifyViewUrl(claim: Claim, shop: string): string | null {
   return null;
 }
 
-function formatRelativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.round(diffMs / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
+function Donut({
+  segments,
+  size = 128,
+}: {
+  segments: { label: string; value: number; color: string }[];
+  size?: number;
+}) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  const gradient =
+    total === 0
+      ? "#f1f2f4"
+      : (() => {
+          let cumulative = 0;
+          const stops = segments
+            .filter((s) => s.value > 0)
+            .map((s) => {
+              const start = (cumulative / total) * 360;
+              cumulative += s.value;
+              const end = (cumulative / total) * 360;
+              return `${s.color} ${start}deg ${end}deg`;
+            });
+          return `conic-gradient(${stops.join(", ")})`;
+        })();
+
+  return (
+    <div
+      className="relative shrink-0 rounded-full"
+      style={{ width: size, height: size, background: gradient }}
+      role="img"
+      aria-label={segments.map((s) => `${s.label}: ${s.value}`).join(", ")}
+    >
+      <div className="absolute inset-[18%] flex items-center justify-center rounded-full bg-white text-lg font-semibold text-gray-900">
+        {total}
+      </div>
+    </div>
+  );
 }
 
-function groupClaimsBySource(claims: Claim[], shop: string): ClaimGroup[] {
-  const groups = new Map<string, ClaimGroup>();
-  for (const claim of claims) {
-    const key = claim.product_id || claim.content_item_id || claim.id;
-    let group = groups.get(key);
-    if (!group) {
-      group = {
-        key,
-        title: claim.product_title || claim.content_item_title || "Untitled",
-        viewUrl: shopifyViewUrl(claim, shop),
-        claims: [],
-      };
-      groups.set(key, group);
-    }
-    group.claims.push(claim);
-  }
-  return Array.from(groups.values());
+function DonutLegend({
+  segments,
+}: {
+  segments: { label: string; value: number; color: string }[];
+}) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  return (
+    <ul className="space-y-1.5 text-sm">
+      {segments.map((s) => (
+        <li key={s.label} className="flex items-center gap-2">
+          <span
+            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: s.color }}
+          />
+          <span className="flex-1 text-gray-700">{s.label}</span>
+          <span className="font-medium text-gray-900">{s.value}</span>
+          <span className="w-10 text-right text-xs text-gray-400">
+            {total > 0 ? Math.round((s.value / total) * 100) : 0}%
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function Dashboard() {
-  const params = useSearchParams();
-  const shop = params.get("shop");
+function BarList({
+  items,
+}: {
+  items: { label: string; value: number; href: string | null }[];
+}) {
+  const max = Math.max(...items.map((i) => i.value), 1);
+  return (
+    <div className="space-y-2.5">
+      {items.map((item, i) => (
+        <div key={`${item.label}-${i}`} className="flex items-center gap-3 text-sm">
+          <div className="w-36 shrink-0 truncate text-gray-700" title={item.label}>
+            {item.href ? (
+              <a href={item.href} target="_blank" rel="noreferrer" className="hover:underline">
+                {item.label}
+              </a>
+            ) : (
+              item.label
+            )}
+          </div>
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full bg-[#008060]"
+              style={{ width: `${(item.value / max) * 100}%` }}
+            />
+          </div>
+          <div className="w-6 shrink-0 text-right text-gray-500">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function DashboardPage() {
+  const shop = useSearchParams().get("shop");
   const qs = useShopQuery();
 
   const [claims, setClaims] = useState<Claim[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ClaimStatus | "all">("all");
-  const [riskFilter, setRiskFilter] = useState<RiskTier | "all">("all");
-  const [search, setSearch] = useState("");
-  const [exporting, setExporting] = useState(false);
-  const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
-    null
-  );
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<PageSize>(100);
+  const [evidenceDocs, setEvidenceDocs] = useState<EvidenceDocument[] | null>(null);
   const [scan, setScan] = useState<Scan | null | undefined>(undefined);
   const [scanning, setScanning] = useState(false);
-  const [pastExports, setPastExports] = useState<AuditExport[] | null>(null);
-  const [showPastExports, setShowPastExports] = useState(false);
-  const [downloadingExportId, setDownloadingExportId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkUpdating, setBulkUpdating] = useState(false);
-  const [evidenceDocs, setEvidenceDocs] = useState<EvidenceDocument[] | null>(null);
-  const [selectedEvidenceId, setSelectedEvidenceId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [triggering, setTriggering] = useState(false);
 
   useEffect(() => {
     if (!shop) return;
-    api
-      .listClaims()
-      .then(setClaims)
-      .catch((e: ApiError) => setError(e.message));
+    api.listClaims().then(setClaims).catch((e: ApiError) => setError(e.message));
+    api.listEvidence().then(setEvidenceDocs).catch(() => {});
     api
       .getLatestScan()
       .then((s) => {
@@ -126,9 +191,6 @@ function Dashboard() {
       .catch(() => setScan(null));
   }, [shop]);
 
-  // While a scan is running (just triggered, or already in progress on
-  // load), poll for it to finish, then refresh claims so new/updated ones
-  // show up without a manual page reload.
   useEffect(() => {
     if (!scanning) return;
     const interval = setInterval(async () => {
@@ -162,506 +224,224 @@ function Dashboard() {
     }
   }
 
-  const filtered = useMemo(() => {
-    if (!claims) return [];
-    const query = search.trim().toLowerCase();
-    return claims.filter(
-      (c) =>
-        (statusFilter === "all" || c.status === statusFilter) &&
-        (riskFilter === "all" || c.risk_tier === riskFilter) &&
-        (!query ||
-          (c.product_title || c.content_item_title || "").toLowerCase().includes(query) ||
-          c.matched_phrase.toLowerCase().includes(query))
-    );
-  }, [claims, statusFilter, riskFilter, search]);
+  const riskSegments = useMemo(() => {
+    const counts: Record<RiskTier, number> = { banned: 0, needs_substantiation: 0, caution: 0 };
+    for (const c of claims ?? []) counts[c.risk_tier]++;
+    return (Object.keys(counts) as RiskTier[]).map((tier) => ({
+      label: RISK_LABELS[tier],
+      value: counts[tier],
+      color: RISK_COLORS[tier],
+    }));
+  }, [claims]);
 
-  useEffect(() => {
-    setPage(1);
-    setSelectedIds(new Set());
-  }, [statusFilter, riskFilter, search, pageSize]);
+  const statusSegments = useMemo(() => {
+    const counts: Record<Claim["status"], number> = {
+      unsubstantiated: 0,
+      substantiated: 0,
+      dismissed: 0,
+    };
+    for (const c of claims ?? []) counts[c.status]++;
+    return (Object.keys(counts) as Claim["status"][]).map((status) => ({
+      label: STATUS_LABELS[status],
+      value: counts[status],
+      color: STATUS_COLORS[status],
+    }));
+  }, [claims]);
 
-  function toggleClaimSelected(claimId: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(claimId)) next.delete(claimId);
-      else next.add(claimId);
-      return next;
-    });
-  }
-
-  function toggleGroupSelected(group: ClaimGroup) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      const allSelected = group.claims.every((c) => next.has(c.id));
-      for (const c of group.claims) {
-        if (allSelected) next.delete(c.id);
-        else next.add(c.id);
-      }
-      return next;
-    });
-  }
-
-  async function handleBulkUpdate(status: "dismissed" | "unsubstantiated") {
-    setBulkUpdating(true);
-    setError(null);
-    try {
-      await api.bulkUpdateClaimStatus(Array.from(selectedIds), status);
-      setSelectedIds(new Set());
-      setClaims(await api.listClaims());
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Bulk update failed.");
-    } finally {
-      setBulkUpdating(false);
+  const topProducts = useMemo(() => {
+    if (!claims || !shop) return [];
+    const byKey = new Map<string, { title: string; count: number; claim: Claim }>();
+    for (const c of claims) {
+      const key = c.product_id || c.content_item_id || c.id;
+      const title = c.product_title || c.content_item_title || "Untitled";
+      const existing = byKey.get(key);
+      if (existing) existing.count++;
+      else byKey.set(key, { title, count: 1, claim: c });
     }
-  }
+    return Array.from(byKey.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+      .map((entry) => ({
+        label: entry.title,
+        value: entry.count,
+        href: shopifyViewUrl(entry.claim, shop),
+      }));
+  }, [claims, shop]);
 
-  const groups = useMemo(
-    () => groupClaimsBySource(filtered, shop || ""),
-    [filtered, shop]
-  );
-
-  const effectivePageSize = pageSize === "all" ? Math.max(groups.length, 1) : pageSize;
-  const totalPages = Math.max(1, Math.ceil(groups.length / effectivePageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pagedGroups = groups.slice(
-    (currentPage - 1) * effectivePageSize,
-    currentPage * effectivePageSize
-  );
-
-  const visibleClaimIds = pagedGroups.flatMap((g) => g.claims.map((c) => c.id));
-  const allVisibleSelected =
-    visibleClaimIds.length > 0 && visibleClaimIds.every((id) => selectedIds.has(id));
-
-  function toggleSelectAllVisible() {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allVisibleSelected) {
-        for (const id of visibleClaimIds) next.delete(id);
-      } else {
-        for (const id of visibleClaimIds) next.add(id);
-      }
-      return next;
-    });
-  }
-
-  // Lazy-loaded the first time a selection is made, same pattern as past
-  // exports — most sessions won't use bulk evidence-linking, so no need to
-  // fetch the vault on every page load.
-  useEffect(() => {
-    if (selectedIds.size > 0 && evidenceDocs === null) {
-      api.listEvidence().then(setEvidenceDocs).catch(() => {});
-    }
-  }, [selectedIds, evidenceDocs]);
-
-  async function handleBulkLinkEvidence() {
-    if (!selectedEvidenceId) return;
-    setBulkUpdating(true);
-    setError(null);
-    try {
-      await api.bulkLinkEvidence(Array.from(selectedIds), selectedEvidenceId);
-      setSelectedIds(new Set());
-      setSelectedEvidenceId("");
-      setClaims(await api.listClaims());
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Bulk evidence link failed.");
-    } finally {
-      setBulkUpdating(false);
-    }
-  }
-
-  async function handleExport() {
-    setExporting(true);
-    setExportResult(null);
-    try {
-      const exportRow = await api.createAuditExport();
-      const download = await api.downloadAuditExport(exportRow.id);
-      setExportResult({ url: download.url, shaSidecarUrl: download.sha256_sidecar_url });
-      if (pastExports) setPastExports([exportRow, ...pastExports]);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Export failed.");
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function handleTogglePastExports() {
-    const next = !showPastExports;
-    setShowPastExports(next);
-    if (next && pastExports === null) {
-      try {
-        setPastExports(await api.listAuditExports());
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Could not load past exports.");
-      }
-    }
-  }
-
-  // Presigned URLs expire quickly (5 minutes), so a past export's download
-  // link can't just be stored from the list response — fetch a fresh one
-  // at click time, same as the evidence vault does.
-  async function handleDownloadPastExport(id: string, which: "csv" | "sha256") {
-    setDownloadingExportId(id);
-    setError(null);
-    try {
-      const download = await api.downloadAuditExport(id);
-      window.open(which === "csv" ? download.url : download.sha256_sidecar_url, "_blank");
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not generate a download link.");
-    } finally {
-      setDownloadingExportId(null);
-    }
-  }
+  const evidenceStats = useMemo(() => {
+    const docs = evidenceDocs ?? [];
+    return {
+      total: docs.length,
+      expired: docs.filter((d) => getExpiryStatus(d.expires_at) === "expired").length,
+      expiringSoon: docs.filter((d) => getExpiryStatus(d.expires_at) === "expiring_soon").length,
+    };
+  }, [evidenceDocs]);
 
   if (!shop) {
-    return (
-      <EmptyState message="No shop context — open this app from your Shopify admin." />
-    );
+    return <EmptyState message="No shop context — open this app from your Shopify admin." />;
   }
 
-  const paginationBar = groups.length > 0 && (
-    <div className="flex items-center justify-between text-sm text-gray-600">
-      <div className="flex items-center gap-2">
-        <label htmlFor="page-size" className="text-gray-500">
-          Products per page
-        </label>
-        <select
-          id="page-size"
-          value={pageSize}
-          onChange={(e) =>
-            setPageSize(
-              e.target.value === "all" ? "all" : (Number(e.target.value) as PageSize)
-            )
-          }
-          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-        >
-          {PAGE_SIZE_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt === "all" ? "All" : opt}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
-          aria-label="Previous page"
-          className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          ←
-        </button>
-        <span>
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={currentPage === totalPages}
-          aria-label="Next page"
-          className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          →
-        </button>
-      </div>
-    </div>
-  );
+  const loading = claims === null || scan === undefined;
+  const neverScanned = !loading && scan === null && !scanning;
+  const scannedButEmpty = !loading && !scanning && scan !== null && claims && claims.length === 0;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Claims</h1>
+          <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Flagged environmental claims across your product catalogue and blog/page copy.
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            {scanning
-              ? "Scanning…"
-              : scan?.completed_at
-                ? `Last scanned ${formatRelativeTime(scan.completed_at)} — ${scan.claims_found ?? 0} claims found`
-                : scan === null
-                  ? "Not scanned yet."
-                  : ""}
+            An overview of flagged environmental claims across your store.
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleScanNow}
-            disabled={scanning}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {scanning ? "Scanning…" : "Re-scan now"}
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
-          >
-            {exporting ? "Generating…" : "Export audit report"}
-          </button>
-        </div>
-      </div>
-
-      {exportResult && (
-        <div className="mt-4 rounded-md border border-[#b7dcc4] bg-[#e3f1df] p-4 text-sm">
-          <p className="font-medium text-[#0c5132]">Audit export ready.</p>
-          <p className="mt-1 text-[#0c5132]">
-            <a href={exportResult.url} className="underline" target="_blank" rel="noreferrer">
-              Download CSV
-            </a>
-            {" · "}
-            <a
-              href={exportResult.shaSidecarUrl}
-              className="underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Download SHA-256 checksum
-            </a>
-          </p>
-        </div>
-      )}
-
-      <div className="mt-2">
         <button
-          onClick={handleTogglePastExports}
-          className="text-xs font-medium text-[#008060] hover:underline"
+          onClick={handleScanNow}
+          disabled={scanning}
+          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
-          {showPastExports ? "Hide past exports" : "Show past exports"}
+          {scanning ? "Scanning…" : "Re-scan now"}
         </button>
       </div>
 
-      {showPastExports && (
-        <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-white">
-          {pastExports === null ? (
-            <div className="p-4 text-center text-sm text-gray-500">Loading…</div>
-          ) : pastExports.length === 0 ? (
-            <div className="p-4 text-center text-sm text-gray-500">No exports generated yet.</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th className="px-4 py-2">Generated</th>
-                  <th className="px-4 py-2">SKUs</th>
-                  <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {pastExports.map((exp) => (
-                  <tr key={exp.id}>
-                    <td className="px-4 py-2 text-gray-700">
-                      {new Date(exp.generated_at).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-gray-500">{exp.sku_count}</td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        disabled={downloadingExportId === exp.id}
-                        onClick={() => handleDownloadPastExport(exp.id, "csv")}
-                        className="mr-3 text-xs font-medium text-[#008060] hover:underline disabled:opacity-50"
-                      >
-                        Download CSV
-                      </button>
-                      <button
-                        disabled={downloadingExportId === exp.id}
-                        onClick={() => handleDownloadPastExport(exp.id, "sha256")}
-                        className="text-xs font-medium text-[#008060] hover:underline disabled:opacity-50"
-                      >
-                        SHA-256
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
       {error && <ErrorBanner message={error} />}
 
-      <div className="mt-6 flex gap-3">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search product, page, or matched phrase…"
-          className="min-w-[220px] flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as ClaimStatus | "all")}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-        >
-          {STATUS_FILTERS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={riskFilter}
-          onChange={(e) => setRiskFilter(e.target.value as RiskTier | "all")}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-        >
-          {RISK_FILTERS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mt-4">{paginationBar}</div>
-
-      {groups.length > 0 && (
-        <label className="mt-4 flex items-center gap-2 text-xs text-gray-500">
-          <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
-          Select all visible
-        </label>
-      )}
-
-      {selectedIds.size > 0 && (
-        <div className="sticky top-0 z-10 mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 bg-white p-3 text-sm shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="font-medium text-gray-700">{selectedIds.size} selected</span>
-            <button
-              disabled={bulkUpdating}
-              onClick={() => handleBulkUpdate("dismissed")}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {bulkUpdating ? "Updating…" : "Mark not applicable"}
-            </button>
-            <button
-              disabled={bulkUpdating}
-              onClick={() => handleBulkUpdate("unsubstantiated")}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {bulkUpdating ? "Updating…" : "Reopen"}
-            </button>
-            <button
-              disabled={bulkUpdating}
-              onClick={() => setSelectedIds(new Set())}
-              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50"
-            >
-              Clear
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedEvidenceId}
-              onChange={(e) => setSelectedEvidenceId(e.target.value)}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            >
-              <option value="">
-                {evidenceDocs === null
-                  ? "Loading evidence…"
-                  : evidenceDocs.length === 0
-                    ? "No uploaded evidence — upload some in the vault"
-                    : "Link evidence to all selected…"}
-              </option>
-              {(evidenceDocs ?? []).map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.file_name} ({doc.doc_type})
-                </option>
-              ))}
-            </select>
-            <button
-              disabled={bulkUpdating || !selectedEvidenceId}
-              onClick={handleBulkLinkEvidence}
-              className="rounded-md bg-[#008060] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
-            >
-              Link
-            </button>
-          </div>
+      {loading ? (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          Loading…
         </div>
-      )}
+      ) : scanning || neverScanned ? (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8">
+          <h2 className="text-base font-semibold text-gray-900">
+            {scanning ? "Your first scan is running…" : "Welcome to Green Claims"}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-gray-600">
+            This app scans your product catalogue and blog/page copy for environmental claims —
+            phrases like &ldquo;eco-friendly&rdquo; or &ldquo;carbon neutral&rdquo; that EU
+            regulation either requires evidence for or bans outright. Flagged claims show up on
+            the Claims tab, grouped by product, where you can link supporting evidence or dismiss
+            false positives.
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            {scanning
+              ? "Your catalogue is being scanned now — this page will update automatically once it's done."
+              : "No scan has run yet."}
+          </p>
+          {!scanning && (
+            <button
+              onClick={handleScanNow}
+              className="mt-4 rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52]"
+            >
+              Run first scan
+            </button>
+          )}
+          <p className="mt-4 text-xs text-gray-400">
+            Want to understand exactly what gets flagged and why?{" "}
+            <Link href={`/settings${qs}`} className="text-[#008060] hover:underline">
+              See how detection works
+            </Link>
+            .
+          </p>
+        </div>
+      ) : scannedButEmpty ? (
+        <div className="mt-6 rounded-lg border border-[#b7dcc4] bg-[#e3f1df] p-8">
+          <h2 className="text-base font-semibold text-[#0c5132]">No claims flagged — nice.</h2>
+          <p className="mt-2 max-w-2xl text-sm text-[#0c5132]">
+            Your last scan{" "}
+            {scan?.completed_at ? `(${formatRelativeTime(scan.completed_at)})` : ""} didn&rsquo;t
+            find any environmental claims in your product or blog/page copy. If you add copy that
+            mentions sustainability, eco-friendliness, or similar later, it&rsquo;ll be picked up
+            on the next scan.
+          </p>
+          <p className="mt-3 text-xs text-[#0c5132]">
+            <Link href={`/settings${qs}`} className="underline">
+              See the full list of terms this app looks for
+            </Link>
+            .
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="mt-4 text-xs text-gray-400">
+            {scan?.completed_at &&
+              `Last scanned ${formatRelativeTime(scan.completed_at)} — ${scan.claims_found ?? 0} claims found`}
+          </p>
 
-      <div className="mt-4 space-y-4">
-        {claims === null && !error ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            Loading claims…
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Total claims" value={claims?.length ?? 0} />
+            <StatCard
+              label="Banned"
+              value={riskSegments.find((s) => s.label === "Banned")?.value ?? 0}
+            />
+            <StatCard
+              label="Substantiated"
+              value={statusSegments.find((s) => s.label === "Substantiated")?.value ?? 0}
+            />
+            <StatCard label="Evidence documents" value={evidenceStats.total} />
           </div>
-        ) : groups.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            {claims && claims.length === 0
-              ? "No claims flagged yet. Claims appear here once your catalogue has been scanned."
-              : "No claims match these filters."}
-          </div>
-        ) : (
-          pagedGroups.map((group) => (
-            <div key={group.key} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-                <label className="flex items-center gap-2 font-medium text-gray-900">
-                  <input
-                    type="checkbox"
-                    checked={group.claims.every((c) => selectedIds.has(c.id))}
-                    onChange={() => toggleGroupSelected(group)}
-                    aria-label={`Select all claims for ${group.title}`}
-                  />
-                  {group.title}
-                </label>
-                {group.viewUrl && (
-                  <a
-                    href={group.viewUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-medium text-[#008060] hover:underline"
-                  >
-                    View in Shopify ↗
-                  </a>
-                )}
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Claims by risk</h2>
+              <div className="mt-3 flex items-center gap-4">
+                <Donut segments={riskSegments} />
+                <DonutLegend segments={riskSegments} />
               </div>
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                  <tr>
-                    <th className="w-8 px-4 py-2" />
-                    <th className="px-4 py-2">Matched phrase</th>
-                    <th className="px-4 py-2">Risk</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Evidence</th>
-                    <th className="px-4 py-2" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {group.claims.map((claim) => (
-                    <tr key={claim.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(claim.id)}
-                          onChange={() => toggleClaimSelected(claim.id)}
-                          aria-label={`Select claim: ${claim.matched_phrase}`}
-                        />
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-700">{claim.matched_phrase}</td>
-                      <td className="px-4 py-2.5">
-                        <span className="-ml-2.5 inline-block">
-                          <RiskBadge risk={claim.risk_tier} />
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className="-ml-2.5 inline-block">
-                          <StatusBadge status={claim.status} />
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-500">{claim.evidence.length}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <Link
-                          href={`/claims/${claim.id}${qs}`}
-                          className="text-xs font-medium text-[#008060] hover:underline"
-                        >
-                          Add evidence
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
-          ))
-        )}
-      </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Claims by status</h2>
+              <div className="mt-3 flex items-center gap-4">
+                <Donut segments={statusSegments} />
+                <DonutLegend segments={statusSegments} />
+              </div>
+            </div>
+          </div>
 
-      <div className="mt-4">{paginationBar}</div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Most-flagged products</h2>
+              {topProducts.length === 0 ? (
+                <p className="mt-3 text-sm text-gray-500">No claims yet.</p>
+              ) : (
+                <div className="mt-3">
+                  <BarList items={topProducts} />
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <h2 className="text-sm font-semibold text-gray-900">Evidence vault</h2>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Documents uploaded</span>
+                  <span className="font-medium text-gray-900">{evidenceStats.total}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expiring within 30 days</span>
+                  <span className="font-medium text-[#8a5700]">{evidenceStats.expiringSoon}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expired</span>
+                  <span className="font-medium text-[#8e1f0b]">{evidenceStats.expired}</span>
+                </div>
+              </div>
+              <Link
+                href={`/evidence${qs}`}
+                className="mt-4 inline-block text-xs font-medium text-[#008060] hover:underline"
+              >
+                Go to evidence vault →
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-4 text-sm">
+            <Link href={`/claims${qs}`} className="font-medium text-[#008060] hover:underline">
+              View all claims →
+            </Link>
+            <Link href={`/settings${qs}`} className="font-medium text-[#008060] hover:underline">
+              Settings →
+            </Link>
+          </div>
+        </>
+      )}
     </main>
   );
 }
@@ -670,7 +450,7 @@ export default function Page() {
   return (
     <Suspense fallback={null}>
       <Nav />
-      <Dashboard />
+      <DashboardPage />
     </Suspense>
   );
 }
