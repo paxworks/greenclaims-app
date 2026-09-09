@@ -258,10 +258,17 @@ function ClaimsPage() {
     setBulkUpdating(true);
     setError(null);
     try {
-      await api.bulkLinkEvidence(Array.from(selectedIds), selectedEvidenceId);
+      const result = await api.bulkLinkEvidence(Array.from(selectedIds), selectedEvidenceId);
       setSelectedIds(new Set());
       setSelectedEvidenceId("");
       setClaims(await api.listClaims());
+      if (result.banned.length > 0) {
+        setError(
+          `Linked to ${result.updated.length} claim${result.updated.length === 1 ? "" : "s"}. ` +
+            `Skipped ${result.banned.length} banned claim${result.banned.length === 1 ? "" : "s"} — ` +
+            `those can't be substantiated with evidence, the copy itself needs to change.`
+        );
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Bulk evidence link failed.");
     } finally {
@@ -645,12 +652,22 @@ function ClaimsPage() {
                       </td>
                       <td className="px-4 py-2.5 text-gray-500">{claim.evidence.length}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <Link
-                          href={`/claims/${claim.id}${qs}`}
-                          className="text-xs font-medium text-[#008060] hover:underline"
-                        >
-                          Add evidence
-                        </Link>
+                        {claim.risk_tier === "banned" ? (
+                          <Link
+                            href={`/claims/${claim.id}${qs}`}
+                            className="text-xs text-gray-400 hover:underline"
+                            title="Banned claims can't be substantiated with evidence — the copy itself needs to change."
+                          >
+                            View
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/claims/${claim.id}${qs}`}
+                            className="text-xs font-medium text-[#008060] hover:underline"
+                          >
+                            Add evidence
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}

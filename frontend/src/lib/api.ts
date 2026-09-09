@@ -166,10 +166,11 @@ export const api = {
       status,
     }),
   bulkLinkEvidence: (claimIds: string[], evidenceDocumentId: string) =>
-    jsonRequest<{ updated: string[]; not_found: string[] }>("/claims/bulk/evidence-links", "POST", {
-      claim_ids: claimIds,
-      evidence_document_id: evidenceDocumentId,
-    }),
+    jsonRequest<{ updated: string[]; not_found: string[]; banned: string[] }>(
+      "/claims/bulk/evidence-links",
+      "POST",
+      { claim_ids: claimIds, evidence_document_id: evidenceDocumentId }
+    ),
   linkEvidence: (claimId: string, evidenceDocumentId: string) =>
     jsonRequest<Claim>(`/claims/${claimId}/evidence-links`, "POST", {
       evidence_document_id: evidenceDocumentId,
