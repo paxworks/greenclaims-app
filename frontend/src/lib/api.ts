@@ -92,7 +92,10 @@ export interface Claim {
   status: ClaimStatus;
   first_detected_at: string;
   last_checked_at: string;
+  product_id: string | null;
   product_title: string | null;
+  shopify_product_id: string | null;
+  content_item_id: string | null;
   content_item_title: string | null;
   evidence: EvidenceRef[];
 }

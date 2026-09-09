@@ -25,6 +25,34 @@ const RISK_FILTERS: { value: RiskTier | "all"; label: string }[] = [
 
 const PAGE_SIZE = 100;
 
+interface ClaimGroup {
+  key: string;
+  title: string;
+  shopifyProductUrl: string | null;
+  claims: Claim[];
+}
+
+function groupClaimsBySource(claims: Claim[], shop: string): ClaimGroup[] {
+  const groups = new Map<string, ClaimGroup>();
+  for (const claim of claims) {
+    const key = claim.product_id || claim.content_item_id || claim.id;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        title: claim.product_title || claim.content_item_title || "Untitled",
+        shopifyProductUrl: claim.shopify_product_id
+          ? `https://${shop}/admin/products/${claim.shopify_product_id}`
+          : null,
+        claims: [],
+      };
+      groups.set(key, group);
+    }
+    group.claims.push(claim);
+  }
+  return Array.from(groups.values());
+}
+
 function Dashboard() {
   const params = useSearchParams();
   const shop = params.get("shop");
@@ -61,9 +89,14 @@ function Dashboard() {
     setPage(1);
   }, [statusFilter, riskFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const groups = useMemo(
+    () => groupClaimsBySource(filtered, shop || ""),
+    [filtered, shop]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagedGroups = groups.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   async function handleExport() {
     setExporting(true);
@@ -150,53 +183,72 @@ function Dashboard() {
         </select>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="mt-4 space-y-4">
         {claims === null && !error ? (
-          <div className="p-8 text-center text-sm text-gray-500">Loading claims…</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-gray-500">
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+            Loading claims…
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
             {claims && claims.length === 0
               ? "No claims flagged yet. Claims appear here once your catalogue has been scanned."
               : "No claims match these filters."}
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-2.5">Source</th>
-                <th className="px-4 py-2.5">Matched phrase</th>
-                <th className="px-4 py-2.5">Risk</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Evidence</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paged.map((claim) => (
-                <tr key={claim.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/claims/${claim.id}${qs}`}
-                      className="font-medium text-[#008060] hover:underline"
-                    >
-                      {claim.product_title || claim.content_item_title || "Untitled"}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">{claim.matched_phrase}</td>
-                  <td className="px-4 py-3">
-                    <RiskBadge risk={claim.risk_tier} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={claim.status} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{claim.evidence.length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          pagedGroups.map((group) => (
+            <div key={group.key} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+                <span className="font-medium text-gray-900">{group.title}</span>
+                {group.shopifyProductUrl && (
+                  <a
+                    href={group.shopifyProductUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-[#008060] hover:underline"
+                  >
+                    View product ↗
+                  </a>
+                )}
+              </div>
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2">Matched phrase</th>
+                    <th className="px-4 py-2">Risk</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Evidence</th>
+                    <th className="px-4 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {group.claims.map((claim) => (
+                    <tr key={claim.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-gray-700">{claim.matched_phrase}</td>
+                      <td className="px-4 py-2.5">
+                        <RiskBadge risk={claim.risk_tier} />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <StatusBadge status={claim.status} />
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">{claim.evidence.length}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <Link
+                          href={`/claims/${claim.id}${qs}`}
+                          className="text-xs font-medium text-[#008060] hover:underline"
+                        >
+                          Add evidence
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))
         )}
       </div>
 
-      {filtered.length > PAGE_SIZE && (
+      {groups.length > PAGE_SIZE && (
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
