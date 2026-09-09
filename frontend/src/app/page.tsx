@@ -105,6 +105,8 @@ function Dashboard() {
   const [pastExports, setPastExports] = useState<AuditExport[] | null>(null);
   const [showPastExports, setShowPastExports] = useState(false);
   const [downloadingExportId, setDownloadingExportId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   useEffect(() => {
     if (!shop) return;
@@ -172,7 +174,43 @@ function Dashboard() {
 
   useEffect(() => {
     setPage(1);
+    setSelectedIds(new Set());
   }, [statusFilter, riskFilter, search, pageSize]);
+
+  function toggleClaimSelected(claimId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(claimId)) next.delete(claimId);
+      else next.add(claimId);
+      return next;
+    });
+  }
+
+  function toggleGroupSelected(group: ClaimGroup) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = group.claims.every((c) => next.has(c.id));
+      for (const c of group.claims) {
+        if (allSelected) next.delete(c.id);
+        else next.add(c.id);
+      }
+      return next;
+    });
+  }
+
+  async function handleBulkUpdate(status: "dismissed" | "unsubstantiated") {
+    setBulkUpdating(true);
+    setError(null);
+    try {
+      await api.bulkUpdateClaimStatus(Array.from(selectedIds), status);
+      setSelectedIds(new Set());
+      setClaims(await api.listClaims());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Bulk update failed.");
+    } finally {
+      setBulkUpdating(false);
+    }
+  }
 
   const groups = useMemo(
     () => groupClaimsBySource(filtered, shop || ""),
@@ -430,6 +468,35 @@ function Dashboard() {
 
       <div className="mt-4">{paginationBar}</div>
 
+      {selectedIds.size > 0 && (
+        <div className="sticky top-0 z-10 mt-4 flex items-center justify-between rounded-md border border-gray-300 bg-white p-3 text-sm shadow-sm">
+          <span className="font-medium text-gray-700">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={bulkUpdating}
+              onClick={() => handleBulkUpdate("dismissed")}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {bulkUpdating ? "Updating…" : "Mark not applicable"}
+            </button>
+            <button
+              disabled={bulkUpdating}
+              onClick={() => handleBulkUpdate("unsubstantiated")}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {bulkUpdating ? "Updating…" : "Reopen"}
+            </button>
+            <button
+              disabled={bulkUpdating}
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 space-y-4">
         {claims === null && !error ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
@@ -445,7 +512,15 @@ function Dashboard() {
           pagedGroups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
               <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-                <span className="font-medium text-gray-900">{group.title}</span>
+                <label className="flex items-center gap-2 font-medium text-gray-900">
+                  <input
+                    type="checkbox"
+                    checked={group.claims.every((c) => selectedIds.has(c.id))}
+                    onChange={() => toggleGroupSelected(group)}
+                    aria-label={`Select all claims for ${group.title}`}
+                  />
+                  {group.title}
+                </label>
                 {group.viewUrl && (
                   <a
                     href={group.viewUrl}
@@ -460,6 +535,7 @@ function Dashboard() {
               <table className="w-full text-sm">
                 <thead className="text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                   <tr>
+                    <th className="w-8 px-4 py-2" />
                     <th className="px-4 py-2">Matched phrase</th>
                     <th className="px-4 py-2">Risk</th>
                     <th className="px-4 py-2">Status</th>
@@ -470,6 +546,14 @@ function Dashboard() {
                 <tbody className="divide-y divide-gray-100">
                   {group.claims.map((claim) => (
                     <tr key={claim.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(claim.id)}
+                          onChange={() => toggleClaimSelected(claim.id)}
+                          aria-label={`Select claim: ${claim.matched_phrase}`}
+                        />
+                      </td>
                       <td className="px-4 py-2.5 text-gray-700">{claim.matched_phrase}</td>
                       <td className="px-4 py-2.5">
                         <span className="-ml-2.5 inline-block">

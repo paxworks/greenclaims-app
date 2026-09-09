@@ -160,6 +160,11 @@ export const api = {
   getClaim: (id: string) => request<Claim>(`/claims/${id}`),
   updateClaimStatus: (id: string, status: ClaimStatus) =>
     jsonRequest<Claim>(`/claims/${id}`, "PATCH", { status }),
+  bulkUpdateClaimStatus: (claimIds: string[], status: "dismissed" | "unsubstantiated") =>
+    jsonRequest<{ updated: string[]; not_found: string[] }>("/claims/bulk", "PATCH", {
+      claim_ids: claimIds,
+      status,
+    }),
   linkEvidence: (claimId: string, evidenceDocumentId: string) =>
     jsonRequest<Claim>(`/claims/${claimId}/evidence-links`, "POST", {
       evidence_document_id: evidenceDocumentId,
