@@ -1,0 +1,13 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[build.args]
+NEXT_PUBLIC_SHOPIFY_API_KEY = "placeholder-api-key"
+
+[deploy]
+startCommand = "npm run start"
+healthcheckPath = "/"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
