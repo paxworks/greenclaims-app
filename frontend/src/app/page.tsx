@@ -93,6 +93,7 @@ function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | "all">("all");
   const [riskFilter, setRiskFilter] = useState<RiskTier | "all">("all");
+  const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
     null
@@ -158,16 +159,20 @@ function Dashboard() {
 
   const filtered = useMemo(() => {
     if (!claims) return [];
+    const query = search.trim().toLowerCase();
     return claims.filter(
       (c) =>
         (statusFilter === "all" || c.status === statusFilter) &&
-        (riskFilter === "all" || c.risk_tier === riskFilter)
+        (riskFilter === "all" || c.risk_tier === riskFilter) &&
+        (!query ||
+          (c.product_title || c.content_item_title || "").toLowerCase().includes(query) ||
+          c.matched_phrase.toLowerCase().includes(query))
     );
-  }, [claims, statusFilter, riskFilter]);
+  }, [claims, statusFilter, riskFilter, search]);
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, riskFilter, pageSize]);
+  }, [statusFilter, riskFilter, search, pageSize]);
 
   const groups = useMemo(
     () => groupClaimsBySource(filtered, shop || ""),
@@ -392,6 +397,13 @@ function Dashboard() {
       {error && <ErrorBanner message={error} />}
 
       <div className="mt-6 flex gap-3">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search product, page, or matched phrase…"
+          className="min-w-[220px] flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as ClaimStatus | "all")}
