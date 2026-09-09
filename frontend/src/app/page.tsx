@@ -23,7 +23,8 @@ const RISK_FILTERS: { value: RiskTier | "all"; label: string }[] = [
   { value: "caution", label: "Caution" },
 ];
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, "all"] as const;
+type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 
 interface ClaimGroup {
   key: string;
@@ -67,6 +68,7 @@ function Dashboard() {
     null
   );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(100);
 
   useEffect(() => {
     if (!shop) return;
@@ -87,16 +89,20 @@ function Dashboard() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, riskFilter]);
+  }, [statusFilter, riskFilter, pageSize]);
 
   const groups = useMemo(
     () => groupClaimsBySource(filtered, shop || ""),
     [filtered, shop]
   );
 
-  const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const effectivePageSize = pageSize === "all" ? Math.max(groups.length, 1) : pageSize;
+  const totalPages = Math.max(1, Math.ceil(groups.length / effectivePageSize));
   const currentPage = Math.min(page, totalPages);
-  const pagedGroups = groups.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagedGroups = groups.slice(
+    (currentPage - 1) * effectivePageSize,
+    currentPage * effectivePageSize
+  );
 
   async function handleExport() {
     setExporting(true);
@@ -117,6 +123,53 @@ function Dashboard() {
       <EmptyState message="No shop context — open this app from your Shopify admin." />
     );
   }
+
+  const paginationBar = groups.length > 0 && (
+    <div className="flex items-center justify-between text-sm text-gray-600">
+      <div className="flex items-center gap-2">
+        <label htmlFor="page-size" className="text-gray-500">
+          Products per page
+        </label>
+        <select
+          id="page-size"
+          value={pageSize}
+          onChange={(e) =>
+            setPageSize(
+              e.target.value === "all" ? "all" : (Number(e.target.value) as PageSize)
+            )
+          }
+          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+        >
+          {PAGE_SIZE_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt === "all" ? "All" : opt}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          aria-label="Previous page"
+          className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          ←
+        </button>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          aria-label="Next page"
+          className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          →
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -183,6 +236,8 @@ function Dashboard() {
         </select>
       </div>
 
+      <div className="mt-4">{paginationBar}</div>
+
       <div className="mt-4 space-y-4">
         {claims === null && !error ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
@@ -248,29 +303,7 @@ function Dashboard() {
         )}
       </div>
 
-      {groups.length > PAGE_SIZE && (
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            aria-label="Previous page"
-            className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            ←
-          </button>
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            aria-label="Next page"
-            className="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            →
-          </button>
-        </div>
-      )}
+      <div className="mt-4">{paginationBar}</div>
     </main>
   );
 }
