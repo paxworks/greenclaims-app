@@ -141,6 +141,15 @@ export interface TermList {
   custom_terms: CustomTerm[];
 }
 
+export interface Scan {
+  id: string;
+  triggered_by: "manual" | "install" | "scheduled";
+  started_at: string;
+  completed_at: string | null;
+  products_scanned: number | null;
+  claims_found: number | null;
+}
+
 // ── API ──────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -195,4 +204,7 @@ export const api = {
     }),
   deleteCustomTerm: (id: string) =>
     request<void>(`/settings/custom-terms/${id}`, { method: "DELETE" }),
+
+  getLatestScan: () => request<Scan | null>("/scans/latest"),
+  triggerScan: () => request<{ status: string }>("/scans", { method: "POST" }),
 };

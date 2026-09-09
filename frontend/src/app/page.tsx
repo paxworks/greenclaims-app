@@ -7,7 +7,7 @@ import { Nav } from "@/components/Nav";
 import { RiskBadge, StatusBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { useShopQuery } from "@/lib/useShopQuery";
-import { api, ApiError, type Claim, type ClaimStatus, type RiskTier } from "@/lib/api";
+import { api, ApiError, type Claim, type ClaimStatus, type RiskTier, type Scan } from "@/lib/api";
 
 const STATUS_FILTERS: { value: ClaimStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -31,6 +31,17 @@ interface ClaimGroup {
   title: string;
   shopifyProductUrl: string | null;
   claims: Claim[];
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }
 
 function groupClaimsBySource(claims: Claim[], shop: string): ClaimGroup[] {
@@ -69,6 +80,8 @@ function Dashboard() {
   );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(100);
+  const [scan, setScan] = useState<Scan | null | undefined>(undefined);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (!shop) return;
@@ -76,7 +89,50 @@ function Dashboard() {
       .listClaims()
       .then(setClaims)
       .catch((e: ApiError) => setError(e.message));
+    api
+      .getLatestScan()
+      .then((s) => {
+        setScan(s);
+        setScanning(!!s && s.completed_at === null);
+      })
+      .catch(() => setScan(null));
   }, [shop]);
+
+  // While a scan is running (just triggered, or already in progress on
+  // load), poll for it to finish, then refresh claims so new/updated ones
+  // show up without a manual page reload.
+  useEffect(() => {
+    if (!scanning) return;
+    const interval = setInterval(async () => {
+      try {
+        const latest = await api.getLatestScan();
+        setScan(latest);
+        if (latest?.completed_at) {
+          setScanning(false);
+          api.listClaims().then(setClaims).catch(() => {});
+        }
+      } catch {
+        // Transient poll failure — try again on the next tick.
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [scanning]);
+
+  async function handleScanNow() {
+    setError(null);
+    try {
+      await api.triggerScan();
+      setScanning(true);
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.status === 409
+          ? "A scan is already in progress."
+          : e instanceof ApiError
+            ? e.message
+            : "Could not start a scan."
+      );
+    }
+  }
 
   const filtered = useMemo(() => {
     if (!claims) return [];
@@ -179,14 +235,32 @@ function Dashboard() {
           <p className="mt-1 text-sm text-gray-500">
             Flagged environmental claims across your product catalogue and blog/page copy.
           </p>
+          <p className="mt-1 text-xs text-gray-400">
+            {scanning
+              ? "Scanning…"
+              : scan?.completed_at
+                ? `Last scanned ${formatRelativeTime(scan.completed_at)} — ${scan.claims_found ?? 0} claims found`
+                : scan === null
+                  ? "Not scanned yet."
+                  : ""}
+          </p>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
-        >
-          {exporting ? "Generating…" : "Export audit report"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleScanNow}
+            disabled={scanning}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {scanning ? "Scanning…" : "Re-scan now"}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
+          >
+            {exporting ? "Generating…" : "Export audit report"}
+          </button>
+        </div>
       </div>
 
       {exportResult && (
