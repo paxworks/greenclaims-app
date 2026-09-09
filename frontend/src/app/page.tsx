@@ -29,8 +29,21 @@ type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 interface ClaimGroup {
   key: string;
   title: string;
-  shopifyProductUrl: string | null;
+  viewUrl: string | null;
   claims: Claim[];
+}
+
+function shopifyViewUrl(claim: Claim, shop: string): string | null {
+  if (claim.shopify_product_id) {
+    return `https://${shop}/admin/products/${claim.shopify_product_id}`;
+  }
+  if (claim.content_type === "page" && claim.shopify_content_id) {
+    return `https://${shop}/admin/pages/${claim.shopify_content_id}`;
+  }
+  if (claim.content_type === "article" && claim.shopify_content_id && claim.shopify_blog_id) {
+    return `https://${shop}/admin/blogs/${claim.shopify_blog_id}/articles/${claim.shopify_content_id}`;
+  }
+  return null;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -53,9 +66,7 @@ function groupClaimsBySource(claims: Claim[], shop: string): ClaimGroup[] {
       group = {
         key,
         title: claim.product_title || claim.content_item_title || "Untitled",
-        shopifyProductUrl: claim.shopify_product_id
-          ? `https://${shop}/admin/products/${claim.shopify_product_id}`
-          : null,
+        viewUrl: shopifyViewUrl(claim, shop),
         claims: [],
       };
       groups.set(key, group);
@@ -328,14 +339,14 @@ function Dashboard() {
             <div key={group.key} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
               <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-2.5">
                 <span className="font-medium text-gray-900">{group.title}</span>
-                {group.shopifyProductUrl && (
+                {group.viewUrl && (
                   <a
-                    href={group.shopifyProductUrl}
+                    href={group.viewUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="text-xs font-medium text-[#008060] hover:underline"
                   >
-                    View product ↗
+                    View in Shopify ↗
                   </a>
                 )}
               </div>

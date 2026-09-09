@@ -97,6 +97,9 @@ export interface Claim {
   shopify_product_id: string | null;
   content_item_id: string | null;
   content_item_title: string | null;
+  shopify_content_id: string | null;
+  content_type: "page" | "article" | null;
+  shopify_blog_id: string | null;
   evidence: EvidenceRef[];
 }
 
