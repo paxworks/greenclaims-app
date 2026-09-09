@@ -1,7 +1,24 @@
 /** @type {import('next').NextConfig} */
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://greenclaims-api.paxworks.io";
+
 const nextConfig = {
   outputFileTracingRoot: require('path').join(__dirname, '../../'),
   trailingSlash: false,
+  // Shopify requires the OAuth redirect_uri to share the same host as the
+  // App URL ("The redirect_uri and application url must have matching
+  // hosts") — but our backend lives on a separate subdomain
+  // (greenclaims-api.paxworks.io). Proxy /auth/* through this domain
+  // transparently so Shopify only ever sees one host, while the real work
+  // still happens on the FastAPI backend. Same pattern billing-app uses
+  // for its own API proxying.
+  async rewrites() {
+    return [
+      {
+        source: "/auth/:path*",
+        destination: `${API_BASE_URL}/auth/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {
