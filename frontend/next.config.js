@@ -56,6 +56,17 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // "/" is statically prerendered, so Next's default long s-maxage
+        // Cache-Control lets Railway's edge proxy serve a cached hit
+        // straight from cache — bypassing middleware.ts entirely, since
+        // that only runs when a request actually reaches the origin
+        // server. The install-redirect check depends on the `shop` query
+        // param and must run on every load, so this route can't be cached
+        // at any shared layer.
+        source: "/",
+        headers: [{ key: "Cache-Control", value: "private, no-store, must-revalidate" }],
+      },
     ];
   },
 };
