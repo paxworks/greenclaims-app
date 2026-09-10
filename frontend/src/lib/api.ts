@@ -220,6 +220,8 @@ export const api = {
     }>(`/audit-exports/${id}/download`),
 
   getTermList: () => request<TermList>("/settings/term-list"),
+  updateLocale: (locale: string) =>
+    jsonRequest<{ locale: string }>("/settings/locale", "PATCH", { locale }),
   addCustomTerm: (phrase: string, riskTier: "needs_substantiation" | "caution") =>
     jsonRequest<CustomTerm>("/settings/custom-terms", "POST", {
       phrase,

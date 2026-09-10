@@ -29,6 +29,7 @@ function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [newPhrase, setNewPhrase] = useState("");
   const [newTier, setNewTier] = useState<"needs_substantiation" | "caution">("caution");
+  const [changingLocale, setChangingLocale] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -65,6 +66,19 @@ function SettingsPage() {
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not remove that term.");
+    }
+  }
+
+  async function handleLocaleChange(locale: string) {
+    setChangingLocale(true);
+    setError(null);
+    try {
+      await api.updateLocale(locale);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update the store language.");
+    } finally {
+      setChangingLocale(false);
     }
   }
 
@@ -158,14 +172,40 @@ function SettingsPage() {
         </div>
       ) : terms ? (
         <>
+          <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+            <label htmlFor="store-locale" className="text-sm font-semibold text-gray-900">
+              Store language
+            </label>
+            <p className="mt-1 text-xs text-gray-500">
+              Which language your product and blog/page copy is written in — detection runs
+              against this language&rsquo;s term list. We can&rsquo;t read this from Shopify
+              directly, so set it here; it doesn&rsquo;t have to match your admin&rsquo;s locale.
+            </p>
+            <select
+              id="store-locale"
+              value={terms.locale}
+              disabled={changingLocale}
+              onChange={(e) => handleLocaleChange(e.target.value)}
+              className="mt-2 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 disabled:opacity-50"
+            >
+              {Object.entries(LOCALE_NAMES).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            {changingLocale && (
+              <span className="ml-2 text-xs text-gray-500">Updating and re-scanning…</span>
+            )}
+          </section>
+
           <section className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
               <span className="text-sm font-semibold text-gray-900">
                 Fixed term list (EU-mandated, read-only)
               </span>
               <span className="ml-2 text-xs text-gray-500">
-                — matched in {LOCALE_NAMES[terms.locale] ?? terms.locale}, based on your store&rsquo;s
-                primary language
+                — matched in {LOCALE_NAMES[terms.locale] ?? terms.locale}
               </span>
             </div>
             <table className="w-full text-sm">
