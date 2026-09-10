@@ -148,6 +148,12 @@ export interface TermList {
   custom_terms: CustomTerm[];
 }
 
+export interface NotificationSettings {
+  notification_email: string | null;
+  banned_alert_enabled: boolean;
+  weekly_digest_enabled: boolean;
+}
+
 export interface Scan {
   id: string;
   triggered_by: "manual" | "install" | "scheduled";
@@ -222,6 +228,9 @@ export const api = {
   getTermList: () => request<TermList>("/settings/term-list"),
   updateLocale: (locale: string) =>
     jsonRequest<{ locale: string }>("/settings/locale", "PATCH", { locale }),
+  getNotificationSettings: () => request<NotificationSettings>("/settings/notifications"),
+  updateNotificationSettings: (patch: Partial<NotificationSettings>) =>
+    jsonRequest<NotificationSettings>("/settings/notifications", "PATCH", patch),
   addCustomTerm: (phrase: string, riskTier: "needs_substantiation" | "caution") =>
     jsonRequest<CustomTerm>("/settings/custom-terms", "POST", {
       phrase,

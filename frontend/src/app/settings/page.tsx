@@ -6,7 +6,7 @@ import { Nav } from "@/components/Nav";
 import { BillingGate } from "@/components/BillingGate";
 import { RiskBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
-import { api, ApiError, type RiskTier, type TermList } from "@/lib/api";
+import { api, ApiError, type NotificationSettings, type RiskTier, type TermList } from "@/lib/api";
 
 const CUSTOM_TIER_OPTIONS: { value: "needs_substantiation" | "caution"; label: string }[] = [
   { value: "needs_substantiation", label: "Needs substantiation" },
@@ -30,12 +30,24 @@ function SettingsPage() {
   const [newPhrase, setNewPhrase] = useState("");
   const [newTier, setNewTier] = useState<"needs_substantiation" | "caution">("caution");
   const [changingLocale, setChangingLocale] = useState(false);
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [togglingBannedAlert, setTogglingBannedAlert] = useState(false);
+  const [togglingDigest, setTogglingDigest] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setTerms(await api.getTermList());
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load the term list.");
+    }
+    try {
+      const settings = await api.getNotificationSettings();
+      setNotifSettings(settings);
+      setEmailDraft(settings.notification_email ?? "");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to load notification settings.");
     }
   }, []);
 
@@ -79,6 +91,50 @@ function SettingsPage() {
       setError(e instanceof ApiError ? e.message : "Could not update the store language.");
     } finally {
       setChangingLocale(false);
+    }
+  }
+
+  async function handleSaveEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEmail(true);
+    setError(null);
+    try {
+      const updated = await api.updateNotificationSettings({ notification_email: emailDraft.trim() });
+      setNotifSettings(updated);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not save that email address.");
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
+  async function handleToggleBannedAlert() {
+    if (!notifSettings) return;
+    setTogglingBannedAlert(true);
+    setError(null);
+    try {
+      setNotifSettings(
+        await api.updateNotificationSettings({ banned_alert_enabled: !notifSettings.banned_alert_enabled })
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update that setting.");
+    } finally {
+      setTogglingBannedAlert(false);
+    }
+  }
+
+  async function handleToggleDigest() {
+    if (!notifSettings) return;
+    setTogglingDigest(true);
+    setError(null);
+    try {
+      setNotifSettings(
+        await api.updateNotificationSettings({ weekly_digest_enabled: !notifSettings.weekly_digest_enabled })
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update that setting.");
+    } finally {
+      setTogglingDigest(false);
     }
   }
 
@@ -196,6 +252,65 @@ function SettingsPage() {
             </select>
             {changingLocale && (
               <span className="ml-2 text-xs text-gray-500">Updating and re-scanning…</span>
+            )}
+          </section>
+
+          <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+            <h2 className="text-sm font-semibold text-gray-900">Email notifications</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Get notified about your store&rsquo;s compliance status without having to check the
+              app.
+            </p>
+
+            <form onSubmit={handleSaveEmail} className="mt-3 flex items-end gap-2">
+              <div className="flex-1">
+                <label htmlFor="notif-email" className="block text-xs font-medium text-gray-500">
+                  Notification email
+                </label>
+                <input
+                  id="notif-email"
+                  type="email"
+                  value={emailDraft}
+                  onChange={(e) => setEmailDraft(e.target.value)}
+                  placeholder="you@yourstore.com"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={savingEmail}
+                className="rounded-md bg-[#008060] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
+              >
+                {savingEmail ? "Saving…" : "Save"}
+              </button>
+            </form>
+
+            {notifSettings && (
+              <div className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={notifSettings.banned_alert_enabled}
+                    disabled={togglingBannedAlert || !notifSettings.notification_email}
+                    onChange={handleToggleBannedAlert}
+                  />
+                  Alert me when a new banned claim is found
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={notifSettings.weekly_digest_enabled}
+                    disabled={togglingDigest || !notifSettings.notification_email}
+                    onChange={handleToggleDigest}
+                  />
+                  Weekly digest of new claims and evidence expiry
+                </label>
+                {!notifSettings.notification_email && (
+                  <p className="text-xs text-gray-400">
+                    Add an email address above to enable notifications.
+                  </p>
+                )}
+              </div>
             )}
           </section>
 
