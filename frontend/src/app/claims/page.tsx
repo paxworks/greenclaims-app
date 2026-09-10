@@ -108,9 +108,12 @@ function ClaimsPage() {
   // phrase or product title.
   const [categoryFilter, setCategoryFilter] = useState(params.get("category") || "");
   const [exporting, setExporting] = useState(false);
-  const [exportResult, setExportResult] = useState<{ url: string; shaSidecarUrl: string } | null>(
-    null
-  );
+  const [exportResult, setExportResult] = useState<{
+    url: string;
+    shaSidecarUrl: string;
+    pdfUrl?: string;
+    pdfShaSidecarUrl?: string;
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(100);
   const [scan, setScan] = useState<Scan | null | undefined>(undefined);
@@ -298,7 +301,12 @@ function ClaimsPage() {
     try {
       const exportRow = await api.createAuditExport();
       const download = await api.downloadAuditExport(exportRow.id);
-      setExportResult({ url: download.url, shaSidecarUrl: download.sha256_sidecar_url });
+      setExportResult({
+        url: download.url,
+        shaSidecarUrl: download.sha256_sidecar_url,
+        pdfUrl: download.pdf_url,
+        pdfShaSidecarUrl: download.pdf_sha256_sidecar_url,
+      });
       if (pastExports) setPastExports([exportRow, ...pastExports]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Export failed.");
@@ -322,12 +330,23 @@ function ClaimsPage() {
   // Presigned URLs expire quickly (5 minutes), so a past export's download
   // link can't just be stored from the list response — fetch a fresh one
   // at click time, same as the evidence vault does.
-  async function handleDownloadPastExport(id: string, which: "csv" | "sha256") {
+  async function handleDownloadPastExport(id: string, which: "csv" | "sha256" | "pdf" | "pdf-sha256") {
     setDownloadingExportId(id);
     setError(null);
     try {
       const download = await api.downloadAuditExport(id);
-      window.open(which === "csv" ? download.url : download.sha256_sidecar_url, "_blank");
+      const urls = {
+        csv: download.url,
+        sha256: download.sha256_sidecar_url,
+        pdf: download.pdf_url,
+        "pdf-sha256": download.pdf_sha256_sidecar_url,
+      };
+      const url = urls[which];
+      if (!url) {
+        setError("This export was generated before PDF support was added — only CSV is available.");
+        return;
+      }
+      window.open(url, "_blank");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not generate a download link.");
     } finally {
@@ -428,6 +447,14 @@ function ClaimsPage() {
         <div className="mt-4 rounded-md border border-[#b7dcc4] bg-[#e3f1df] p-4 text-sm">
           <p className="font-medium text-[#0c5132]">Audit export ready.</p>
           <p className="mt-1 text-[#0c5132]">
+            {exportResult.pdfUrl && (
+              <>
+                <a href={exportResult.pdfUrl} className="underline" target="_blank" rel="noreferrer">
+                  Download PDF
+                </a>
+                {" · "}
+              </>
+            )}
             <a href={exportResult.url} className="underline" target="_blank" rel="noreferrer">
               Download CSV
             </a>
@@ -440,6 +467,19 @@ function ClaimsPage() {
             >
               Download SHA-256 checksum
             </a>
+            {exportResult.pdfShaSidecarUrl && (
+              <>
+                {" · "}
+                <a
+                  href={exportResult.pdfShaSidecarUrl}
+                  className="underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Download PDF SHA-256 checksum
+                </a>
+              </>
+            )}
           </p>
         </div>
       )}
@@ -476,6 +516,15 @@ function ClaimsPage() {
                     </td>
                     <td className="px-4 py-2 text-gray-500">{exp.sku_count}</td>
                     <td className="px-4 py-2 text-right">
+                      {exp.pdf_file_hash && (
+                        <button
+                          disabled={downloadingExportId === exp.id}
+                          onClick={() => handleDownloadPastExport(exp.id, "pdf")}
+                          className="mr-3 text-xs font-medium text-[#008060] hover:underline disabled:opacity-50"
+                        >
+                          Download PDF
+                        </button>
+                      )}
                       <button
                         disabled={downloadingExportId === exp.id}
                         onClick={() => handleDownloadPastExport(exp.id, "csv")}

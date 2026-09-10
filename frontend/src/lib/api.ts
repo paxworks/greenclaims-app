@@ -123,6 +123,8 @@ export interface AuditExport {
   generated_at: string;
   sku_count: number;
   file_hash: string;
+  // Null for exports generated before PDF support existed.
+  pdf_file_hash: string | null;
   requested_by: string | null;
 }
 
@@ -206,9 +208,15 @@ export const api = {
       method: "POST",
     }),
   downloadAuditExport: (id: string) =>
-    request<{ url: string; sha256_sidecar_url: string; file_hash: string }>(
-      `/audit-exports/${id}/download`
-    ),
+    request<{
+      url: string;
+      sha256_sidecar_url: string;
+      file_hash: string;
+      // Present only for exports generated after PDF support existed.
+      pdf_url?: string;
+      pdf_sha256_sidecar_url?: string;
+      pdf_file_hash?: string;
+    }>(`/audit-exports/${id}/download`),
 
   getTermList: () => request<TermList>("/settings/term-list"),
   addCustomTerm: (phrase: string, riskTier: "needs_substantiation" | "caution") =>
