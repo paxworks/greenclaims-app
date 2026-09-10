@@ -113,7 +113,7 @@ export interface EvidenceDocument {
 }
 
 export interface BillingStatus {
-  plan_tier: "basic" | "pro";
+  plan_tier: string;
   product_limit: number | null;
   has_active_subscription: boolean;
 }
@@ -198,8 +198,7 @@ export const api = {
   downloadEvidence: (id: string) => request<{ url: string }>(`/evidence/${id}/download`),
 
   billingStatus: () => request<BillingStatus>("/billing/status"),
-  subscribe: (tier: "basic" | "pro") =>
-    jsonRequest<{ confirmation_url: string }>("/billing/subscribe", "POST", { tier }),
+  subscribe: () => jsonRequest<{ confirmation_url: string }>("/billing/subscribe", "POST"),
 
   listAuditExports: () => request<AuditExport[]>("/audit-exports"),
   createAuditExport: (productId?: string) =>

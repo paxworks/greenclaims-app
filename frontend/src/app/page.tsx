@@ -10,6 +10,7 @@ import { getExpiryStatus } from "@/lib/expiry";
 import {
   api,
   ApiError,
+  type BillingStatus,
   type Claim,
   type EvidenceDocument,
   type RiskTier,
@@ -235,11 +236,13 @@ function DashboardPage() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
 
   useEffect(() => {
     if (!shop) return;
     api.listClaims().then(setClaims).catch((e: ApiError) => setError(e.message));
     api.listEvidence().then(setEvidenceDocs).catch(() => {});
+    api.billingStatus().then(setBillingStatus).catch(() => {});
     api
       .getLatestScan()
       .then((s) => {
@@ -265,6 +268,20 @@ function DashboardPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, [scanning]);
+
+  const [subscribing, setSubscribing] = useState(false);
+
+  async function handleSubscribe() {
+    setSubscribing(true);
+    setError(null);
+    try {
+      const { confirmation_url } = await api.subscribe();
+      window.open(confirmation_url, "_top");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not start checkout.");
+      setSubscribing(false);
+    }
+  }
 
   async function handleScanNow() {
     setError(null);
@@ -370,6 +387,22 @@ function DashboardPage() {
           Learn more
         </Link>
       </p>
+
+      {billingStatus && !billingStatus.has_active_subscription && (
+        <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-[#008060] bg-[#f1f8f6] px-4 py-3">
+          <p className="text-sm text-gray-700">
+            This is what we found. Subscribe to open Claims, the Evidence vault, and Settings so
+            you can fix it.
+          </p>
+          <button
+            onClick={handleSubscribe}
+            disabled={subscribing}
+            className="shrink-0 rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52] disabled:opacity-50"
+          >
+            {subscribing ? "Redirecting…" : "Subscribe — $29.99/mo"}
+          </button>
+        </div>
+      )}
 
       {error && <ErrorBanner message={error} />}
 

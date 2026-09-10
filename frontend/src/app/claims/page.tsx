@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
+import { BillingGate } from "@/components/BillingGate";
 import { RiskBadge, StatusBadge } from "@/components/Badge";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { useShopQuery } from "@/lib/useShopQuery";
@@ -719,7 +720,9 @@ export default function Page() {
   return (
     <Suspense fallback={null}>
       <Nav />
-      <ClaimsPage />
+      <BillingGate>
+        <ClaimsPage />
+      </BillingGate>
     </Suspense>
   );
 }

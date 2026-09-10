@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Nav } from "@/components/Nav";
+import { BillingGate } from "@/components/BillingGate";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
 import { api, ApiError, type EvidenceDocument } from "@/lib/api";
 import { getExpiryStatus } from "@/lib/expiry";
@@ -232,7 +233,9 @@ export default function Page() {
   return (
     <Suspense fallback={null}>
       <Nav />
-      <EvidenceVault />
+      <BillingGate>
+        <EvidenceVault />
+      </BillingGate>
     </Suspense>
   );
 }
