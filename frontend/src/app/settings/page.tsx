@@ -13,6 +13,14 @@ const CUSTOM_TIER_OPTIONS: { value: "needs_substantiation" | "caution"; label: s
   { value: "caution", label: "Caution (manual review only)" },
 ];
 
+const LOCALE_NAMES: Record<string, string> = {
+  en: "English",
+  de: "German",
+  fr: "French",
+  es: "Spanish",
+  it: "Italian",
+};
+
 function SettingsPage() {
   const shop = useSearchParams().get("shop");
 
@@ -154,6 +162,10 @@ function SettingsPage() {
             <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
               <span className="text-sm font-semibold text-gray-900">
                 Fixed term list (EU-mandated, read-only)
+              </span>
+              <span className="ml-2 text-xs text-gray-500">
+                — matched in {LOCALE_NAMES[terms.locale] ?? terms.locale}, based on your store&rsquo;s
+                primary language
               </span>
             </div>
             <table className="w-full text-sm">

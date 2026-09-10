@@ -142,6 +142,7 @@ export interface CustomTerm {
 }
 
 export interface TermList {
+  locale: string;
   core_terms: TermOut[];
   ambiguous_terms: TermOut[];
   custom_terms: CustomTerm[];
