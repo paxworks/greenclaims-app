@@ -237,6 +237,12 @@ function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  // Captured at the moment a manual scan is triggered, from whether the
+  // store had never been scanned at all — the "manual" triggered_by tag
+  // Scan rows carry is identical for a genuine first scan (clicked from the
+  // welcome screen) and an ordinary re-scan, so it can't disambiguate the
+  // two on its own once a poll overwrites `scan` mid-run.
+  const [manualScanWasFirst, setManualScanWasFirst] = useState(false);
 
   useEffect(() => {
     if (!shop) return;
@@ -287,6 +293,10 @@ function DashboardPage() {
     setError(null);
     try {
       await api.triggerScan();
+      // `scan` is still whatever was loaded before this click — null only
+      // when no scan has ever run for this store, regardless of what the
+      // upcoming poll later overwrites it with.
+      setManualScanWasFirst(scan === null);
       setScanning(true);
     } catch (e) {
       setError(
@@ -361,6 +371,11 @@ function DashboardPage() {
   const loading = claims === null || scan === undefined;
   const neverScanned = !loading && scan === null && !scanning;
   const scannedButEmpty = !loading && !scanning && scan !== null && claims && claims.length === 0;
+  // A re-scan on a store that already has data shouldn't blank the
+  // dashboard or claim to be the "first" scan — only the automatic
+  // install-triggered scan, or a manual scan clicked from the empty
+  // "never scanned" welcome screen, actually is.
+  const isFirstScanInProgress = scanning && (scan?.triggered_by === "install" || manualScanWasFirst);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -410,10 +425,10 @@ function DashboardPage() {
         <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
           Loading…
         </div>
-      ) : scanning || neverScanned ? (
+      ) : isFirstScanInProgress || neverScanned ? (
         <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8">
           <h2 className="text-base font-semibold text-gray-900">
-            {scanning ? "Your first scan is running…" : "Welcome to Green Claims"}
+            {isFirstScanInProgress ? "Your first scan is running…" : "Welcome to Green Claims"}
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-gray-600">
             This app scans your product catalogue and blog/page copy for environmental claims —
@@ -423,11 +438,11 @@ function DashboardPage() {
             false positives.
           </p>
           <p className="mt-2 text-sm text-gray-600">
-            {scanning
+            {isFirstScanInProgress
               ? "Your catalogue is being scanned now — this page will update automatically once it's done."
               : "No scan has run yet."}
           </p>
-          {!scanning && (
+          {!isFirstScanInProgress && (
             <button
               onClick={handleScanNow}
               className="mt-4 rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52]"
