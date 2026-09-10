@@ -21,6 +21,19 @@ const LOCALE_NAMES: Record<string, string> = {
   it: "Italian",
 };
 
+// Same color language as everywhere else in the app (Badge.tsx, the
+// Dashboard donuts) — green for "this applies", amber for "pay attention",
+// gray for "not operative" — rather than a one-off callout style.
+const HIGHLIGHT_STYLES = {
+  green: "bg-[#E3F3EF] text-[#008060]",
+  amber: "bg-[#FBF1D6] text-[#B98900]",
+  gray: "bg-gray-100 text-gray-600",
+} as const;
+
+function Highlight({ tone, children }: { tone: keyof typeof HIGHLIGHT_STYLES; children: React.ReactNode }) {
+  return <mark className={`rounded px-1 font-medium ${HIGHLIGHT_STYLES[tone]}`}>{children}</mark>;
+}
+
 function SettingsPage() {
   const shop = useSearchParams().get("shop");
 
@@ -153,19 +166,22 @@ function SettingsPage() {
         <h2 className="text-sm font-semibold text-gray-900">Why this matters</h2>
         <p className="mt-2">
           The EU&rsquo;s Empowering Consumers for the Green Transition Directive (Directive (EU)
-          2024/825) applies from 27 September 2026 and bans misleading environmental claims
-          (&ldquo;greenwashing&rdquo;) in commercial communications, including product listings
-          and marketing copy. National consumer authorities can fine non-compliant traders up to
-          4% of annual turnover (or €2 million where turnover isn&rsquo;t available), alongside
-          other remedies such as ordering the claim removed.
+          2024/825, <Highlight tone="green">EmpCo</Highlight>) applies from{" "}
+          <Highlight tone="amber">27 September 2026</Highlight> and bans misleading environmental
+          claims (&ldquo;greenwashing&rdquo;) in commercial communications, including product
+          listings and marketing copy. National consumer authorities can fine non-compliant
+          traders up to <Highlight tone="amber">4% of annual turnover</Highlight> (or €2 million
+          where turnover isn&rsquo;t available), alongside other remedies such as ordering the
+          claim removed.
         </p>
-        <p className="mt-2 rounded-md border-l-2 border-gray-200 pl-3 text-xs text-gray-500">
-          This is a separate piece of legislation from the EU&rsquo;s proposed{" "}
-          <em>Green Claims Directive</em>, which the European Commission paused in June 2025 —
-          that pause has no effect here. EmpCo was already adopted in 2024 and still applies
-          from 27 September 2026 regardless.
+        <p className="mt-2">
+          This is separate from the EU&rsquo;s proposed{" "}
+          <Highlight tone="gray">Green Claims Directive</Highlight>, which the European
+          Commission paused in June 2025 — that pause has no effect here.{" "}
+          <Highlight tone="green">EmpCo</Highlight> was already adopted in 2024 and still applies
+          regardless.
         </p>
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2">
           This is general information, not legal advice — it doesn&rsquo;t guarantee regulatory
           compliance. See the full{" "}
           <a
