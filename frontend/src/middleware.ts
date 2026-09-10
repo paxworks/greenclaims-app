@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://greenclaims-api.paxworks.io";
+
 /**
  * Shopify's automated store-review check loads the app root with a `shop`
  * param for a shop that has never installed it, and expects an immediate
@@ -17,22 +19,30 @@ export async function middleware(req: NextRequest) {
   const shop = req.nextUrl.searchParams.get("shop");
   if (!shop) return NextResponse.next();
 
+  // req.url/req.nextUrl reflect Railway's internal forwarding address
+  // (http://localhost:8080), not the public host — confirmed via production
+  // logs showing "https://localhost:8080/..." here, which broke both the
+  // status fetch (TLS against a plain-HTTP internal port) and would have
+  // broken the redirect Location header too. Standard forwarded headers
+  // carry the real external origin.
+  const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
+  const publicOrigin = `${proto}://${host}`;
+
   try {
-    const statusUrl = new URL(`/auth/status?shop=${encodeURIComponent(shop)}`, req.url);
-    console.log("[mw-debug] req.url:", req.url, "statusUrl:", statusUrl.toString());
+    // Hit the backend directly rather than through the same-origin /auth/*
+    // rewrite — avoids the internal-forwarding-address problem entirely for
+    // this call, since it never needs to resolve req.url at all.
+    const statusUrl = `${API_BASE_URL}/auth/status?shop=${encodeURIComponent(shop)}`;
     const res = await fetch(statusUrl, { headers: { accept: "application/json" } });
-    console.log("[mw-debug] status fetch ok:", res.ok, "http:", res.status);
     if (res.ok) {
       const { installed } = (await res.json()) as { installed: boolean };
-      console.log("[mw-debug] installed:", installed);
       if (!installed) {
-        const installUrl = new URL(`/auth/install?shop=${encodeURIComponent(shop)}`, req.url);
-        console.log("[mw-debug] redirecting to:", installUrl.toString());
+        const installUrl = new URL(`/auth/install?shop=${encodeURIComponent(shop)}`, publicOrigin);
         return NextResponse.redirect(installUrl);
       }
     }
-  } catch (e) {
-    console.log("[mw-debug] fetch threw:", e instanceof Error ? e.message : String(e));
+  } catch {
     // Backend unreachable — fall through and let the page render; its own
     // API calls will surface the failure rather than blocking the app on
     // this check alone.
