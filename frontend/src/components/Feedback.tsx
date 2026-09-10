@@ -8,7 +8,7 @@ export function EmptyState({ message }: { message: string }) {
 
 export function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="mt-4 rounded-md border border-[#f3c6b9] bg-[#fbeae5] p-3 text-sm text-[#8e1f0b]">
+    <div className="mt-4 rounded-md border border-[#f3c6b9] bg-[#fbeae5] p-3 text-sm text-[#D82C0D]">
       {message}
     </div>
   );

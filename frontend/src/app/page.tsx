@@ -20,8 +20,8 @@ import {
 // Same hex values as Badge.tsx, reused here so a colour means the same
 // thing on the dashboard's charts as it does on the Claims table badges.
 const RISK_COLORS: Record<RiskTier, string> = {
-  banned: "#8e1f0b",
-  needs_substantiation: "#8a5700",
+  banned: "#D82C0D",
+  needs_substantiation: "#B98900",
   caution: "#5c5f62",
 };
 const RISK_LABELS: Record<RiskTier, string> = {
@@ -30,8 +30,8 @@ const RISK_LABELS: Record<RiskTier, string> = {
   caution: "Caution",
 };
 const STATUS_COLORS: Record<Claim["status"], string> = {
-  substantiated: "#0c5132",
-  unsubstantiated: "#8a5700",
+  substantiated: "#008060",
+  unsubstantiated: "#B98900",
   dismissed: "#5c5f62",
 };
 const STATUS_LABELS: Record<Claim["status"], string> = {
@@ -459,16 +459,16 @@ function DashboardPage() {
           </p>
         </div>
       ) : scannedButEmpty ? (
-        <div className="mt-6 rounded-lg border border-[#b7dcc4] bg-[#e3f1df] p-8">
-          <h2 className="text-base font-semibold text-[#0c5132]">No claims flagged — nice.</h2>
-          <p className="mt-2 max-w-2xl text-sm text-[#0c5132]">
+        <div className="mt-6 rounded-lg border border-[#BADFD3] bg-[#E3F3EF] p-8">
+          <h2 className="text-base font-semibold text-[#008060]">No claims flagged — nice.</h2>
+          <p className="mt-2 max-w-2xl text-sm text-[#008060]">
             Your last scan{" "}
             {scan?.completed_at ? `(${formatRelativeTime(scan.completed_at)})` : ""} didn&rsquo;t
             find any environmental claims in your product or blog/page copy. If you add copy that
             mentions sustainability, eco-friendliness, or similar later, it&rsquo;ll be picked up
             on the next scan.
           </p>
-          <p className="mt-3 text-xs text-[#0c5132]">
+          <p className="mt-3 text-xs text-[#008060]">
             <Link href={`/settings${qs}`} className="underline">
               See the full list of terms this app looks for
             </Link>
@@ -538,11 +538,11 @@ function DashboardPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Expiring within 30 days</span>
-                  <span className="font-medium text-[#8a5700]">{evidenceStats.expiringSoon}</span>
+                  <span className="font-medium text-[#B98900]">{evidenceStats.expiringSoon}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Expired</span>
-                  <span className="font-medium text-[#8e1f0b]">{evidenceStats.expired}</span>
+                  <span className="font-medium text-[#D82C0D]">{evidenceStats.expired}</span>
                 </div>
               </div>
               <Link

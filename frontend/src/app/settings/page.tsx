@@ -137,13 +137,13 @@ function SettingsPage() {
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-5">
           <li>
-            <span className="font-medium text-[#8e1f0b]">Banned</span> — phrases the EU bans
+            <span className="font-medium text-[#D82C0D]">Banned</span> — phrases the EU bans
             outright (e.g. &ldquo;carbon neutral&rdquo;, &ldquo;net zero&rdquo;), because they
             rely on carbon offsetting rather than an actual reduction in emissions. These can
             never be substantiated away — the copy itself needs to change.
           </li>
           <li>
-            <span className="font-medium text-[#8a5700]">Needs substantiation</span> — a genuine
+            <span className="font-medium text-[#B98900]">Needs substantiation</span> — a genuine
             environmental claim (e.g. &ldquo;eco-friendly&rdquo;, &ldquo;sustainable&rdquo;) that
             is legal to make, but only if you can back it up. Link evidence (a certificate, lab
             result, or LCA report) to move it to &ldquo;substantiated&rdquo;.

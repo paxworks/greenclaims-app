@@ -444,9 +444,9 @@ function ClaimsPage() {
       </div>
 
       {exportResult && (
-        <div className="mt-4 rounded-md border border-[#b7dcc4] bg-[#e3f1df] p-4 text-sm">
-          <p className="font-medium text-[#0c5132]">Audit export ready.</p>
-          <p className="mt-1 text-[#0c5132]">
+        <div className="mt-4 rounded-md border border-[#BADFD3] bg-[#E3F3EF] p-4 text-sm">
+          <p className="font-medium text-[#008060]">Audit export ready.</p>
+          <p className="mt-1 text-[#008060]">
             {exportResult.pdfUrl && (
               <>
                 <a href={exportResult.pdfUrl} className="underline" target="_blank" rel="noreferrer">

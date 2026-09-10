@@ -20,10 +20,10 @@ function ExpiryLabel({ expiresAt }: { expiresAt: string | null }) {
   const status = getExpiryStatus(expiresAt);
   const date = new Date(expiresAt).toLocaleDateString();
   if (status === "expired") {
-    return <span className="font-medium text-[#8e1f0b]">{date} (expired)</span>;
+    return <span className="font-medium text-[#D82C0D]">{date} (expired)</span>;
   }
   if (status === "expiring_soon") {
-    return <span className="font-medium text-[#8a5700]">{date} (soon)</span>;
+    return <span className="font-medium text-[#B98900]">{date} (soon)</span>;
   }
   return <span className="text-gray-500">{date}</span>;
 }

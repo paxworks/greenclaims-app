@@ -1,8 +1,8 @@
 import type { ClaimStatus, RiskTier } from "@/lib/api";
 
 const STATUS_STYLES: Record<ClaimStatus, string> = {
-  substantiated: "bg-[#e3f1df] text-[#0c5132] border-[#b7dcc4]",
-  unsubstantiated: "bg-[#fff4e4] text-[#8a5700] border-[#ffdca8]",
+  substantiated: "bg-[#E3F3EF] text-[#008060] border-[#BADFD3]",
+  unsubstantiated: "bg-[#fff4e4] text-[#B98900] border-[#ffdca8]",
   dismissed: "bg-[#f1f2f4] text-[#5c5f62] border-[#d2d5d8]",
 };
 
@@ -13,8 +13,8 @@ const STATUS_LABELS: Record<ClaimStatus, string> = {
 };
 
 const RISK_STYLES: Record<RiskTier, string> = {
-  banned: "bg-[#fbeae5] text-[#8e1f0b] border-[#f3c6b9]",
-  needs_substantiation: "bg-[#fff4e4] text-[#8a5700] border-[#ffdca8]",
+  banned: "bg-[#fbeae5] text-[#D82C0D] border-[#f3c6b9]",
+  needs_substantiation: "bg-[#fff4e4] text-[#B98900] border-[#ffdca8]",
   caution: "bg-[#f1f2f4] text-[#5c5f62] border-[#d2d5d8]",
 };
 

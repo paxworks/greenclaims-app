@@ -160,9 +160,9 @@ function ClaimDetail() {
                     <span
                       className={`ml-2 text-xs ${
                         getExpiryStatus(doc.expires_at) === "expired"
-                          ? "font-medium text-[#8e1f0b]"
+                          ? "font-medium text-[#D82C0D]"
                           : getExpiryStatus(doc.expires_at) === "expiring_soon"
-                            ? "font-medium text-[#8a5700]"
+                            ? "font-medium text-[#B98900]"
                             : "text-gray-400"
                       }`}
                     >
@@ -187,7 +187,7 @@ function ClaimDetail() {
         )}
 
         {claim.risk_tier === "banned" ? (
-          <p className="mt-4 rounded-md border border-[#f3c6b9] bg-[#fbeae5] p-3 text-sm text-[#8e1f0b]">
+          <p className="mt-4 rounded-md border border-[#f3c6b9] bg-[#fbeae5] p-3 text-sm text-[#D82C0D]">
             This claim uses a banned phrase — an EU-prohibited offset-based neutrality claim
             (e.g. &ldquo;carbon neutral&rdquo;). It can&rsquo;t be substantiated with evidence;
             the copy itself needs to change. Existing links above can still be removed.
