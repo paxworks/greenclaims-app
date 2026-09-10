@@ -199,6 +199,30 @@ function SettingsPage() {
             )}
           </section>
 
+          <section className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 opacity-60">
+            <div className="flex items-center justify-between">
+              <label htmlFor="ai-suggestions" className="text-sm font-semibold text-gray-900">
+                AI-suggested rewordings
+              </label>
+              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                Coming soon
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Generate a compliant rewording suggestion for a flagged claim, so you don&rsquo;t
+              have to draft replacement copy from scratch — especially useful for banned claims,
+              which can&rsquo;t be fixed with evidence and need the wording itself to change.
+            </p>
+            <button
+              id="ai-suggestions"
+              type="button"
+              disabled
+              className="mt-2 cursor-not-allowed rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-400"
+            >
+              Enable AI suggestions
+            </button>
+          </section>
+
           <section className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
               <span className="text-sm font-semibold text-gray-900">
