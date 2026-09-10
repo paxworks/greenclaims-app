@@ -159,6 +159,12 @@ function SettingsPage() {
           4% of annual turnover (or €2 million where turnover isn&rsquo;t available), alongside
           other remedies such as ordering the claim removed.
         </p>
+        <p className="mt-2 rounded-md border-l-2 border-gray-200 pl-3 text-xs text-gray-500">
+          This is a separate piece of legislation from the EU&rsquo;s proposed{" "}
+          <em>Green Claims Directive</em>, which the European Commission paused in June 2025 —
+          that pause has no effect here. EmpCo was already adopted in 2024 and still applies
+          from 27 September 2026 regardless.
+        </p>
         <p className="mt-2 text-xs text-gray-500">
           This is general information, not legal advice — it doesn&rsquo;t guarantee regulatory
           compliance. See the full{" "}
