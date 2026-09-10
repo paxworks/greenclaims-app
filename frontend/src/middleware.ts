@@ -19,15 +19,20 @@ export async function middleware(req: NextRequest) {
 
   try {
     const statusUrl = new URL(`/auth/status?shop=${encodeURIComponent(shop)}`, req.url);
+    console.log("[mw-debug] req.url:", req.url, "statusUrl:", statusUrl.toString());
     const res = await fetch(statusUrl, { headers: { accept: "application/json" } });
+    console.log("[mw-debug] status fetch ok:", res.ok, "http:", res.status);
     if (res.ok) {
       const { installed } = (await res.json()) as { installed: boolean };
+      console.log("[mw-debug] installed:", installed);
       if (!installed) {
         const installUrl = new URL(`/auth/install?shop=${encodeURIComponent(shop)}`, req.url);
+        console.log("[mw-debug] redirecting to:", installUrl.toString());
         return NextResponse.redirect(installUrl);
       }
     }
-  } catch {
+  } catch (e) {
+    console.log("[mw-debug] fetch threw:", e instanceof Error ? e.message : String(e));
     // Backend unreachable — fall through and let the page render; its own
     // API calls will surface the failure rather than blocking the app on
     // this check alone.
