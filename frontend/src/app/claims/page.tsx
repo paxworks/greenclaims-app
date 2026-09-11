@@ -409,6 +409,12 @@ function ClaimsPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
+      {/* Sticky so the search/filter toolbar (and everything above it) stays
+          visible while only the claims list below scrolls — claim lists can
+          run to hundreds of rows, and re-finding filters after every scroll
+          was the actual complaint. bg matches body (globals.css) so list
+          rows don't visibly slide "through" this panel while scrolling. */}
+      <div className="sticky top-0 z-20 bg-[#f6f6f7] pb-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Claims</h1>
@@ -609,7 +615,7 @@ function ClaimsPage() {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="sticky top-0 z-10 mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 bg-white p-3 text-sm shadow-sm">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 bg-white p-3 text-sm shadow-sm">
           <div className="flex items-center gap-3">
             <span className="font-medium text-gray-700">{selectedIds.size} selected</span>
             <button
@@ -663,6 +669,7 @@ function ClaimsPage() {
           </div>
         </div>
       )}
+      </div>
 
       <div className="mt-4 space-y-4">
         {claims === null && !error ? (
