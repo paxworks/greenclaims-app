@@ -38,7 +38,7 @@ export function Nav() {
   }, [shop]);
 
   return (
-    <nav className="border-b border-gray-200 bg-white">
+    <nav className="sticky top-0 z-30 border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center gap-6 px-6">
         <a href="https://paxworks.io" target="_blank" rel="noreferrer" className="flex shrink-0 items-center gap-2 py-3">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true">

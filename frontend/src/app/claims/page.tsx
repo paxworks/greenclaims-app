@@ -413,8 +413,11 @@ function ClaimsPage() {
           visible while only the claims list below scrolls — claim lists can
           run to hundreds of rows, and re-finding filters after every scroll
           was the actual complaint. bg matches body (globals.css) so list
-          rows don't visibly slide "through" this panel while scrolling. */}
-      <div className="sticky top-0 z-20 bg-[#f6f6f7] pb-4">
+          rows don't visibly slide "through" this panel while scrolling.
+          top-[47px] docks it directly beneath Nav (now also sticky, see
+          Nav.tsx) — that height comes from Nav's py-3 + text-sm line-height
+          + its border-b, so the two stick together with no gap or overlap. */}
+      <div className="sticky top-[47px] z-20 bg-[#f6f6f7] pb-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Claims</h1>
