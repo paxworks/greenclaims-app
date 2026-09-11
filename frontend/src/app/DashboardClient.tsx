@@ -403,7 +403,11 @@ function DashboardPage() {
         </Link>
       </p>
 
-      {billingStatus && !billingStatus.has_active_subscription && (
+      {billingStatus &&
+        !billingStatus.has_active_subscription &&
+        !loading &&
+        !neverScanned &&
+        !isFirstScanInProgress && (
         <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-[#008060] bg-[#f1f8f6] px-4 py-3">
           <p className="text-sm text-gray-700">
             This is what we found. Subscribe to open Claims, the Evidence vault, and Settings so
