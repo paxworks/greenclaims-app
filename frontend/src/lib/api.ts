@@ -226,6 +226,7 @@ export const api = {
     }>(`/audit-exports/${id}/download`),
 
   getTermList: () => request<TermList>("/settings/term-list"),
+  getLocale: () => request<{ locale: string }>("/settings/locale"),
   updateLocale: (locale: string) =>
     jsonRequest<{ locale: string }>("/settings/locale", "PATCH", { locale }),
   getNotificationSettings: () => request<NotificationSettings>("/settings/notifications"),

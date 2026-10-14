@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { EmptyState, ErrorBanner } from "@/components/Feedback";
@@ -226,6 +226,17 @@ function StatCard({ label, value, href }: { label: string; value: number; href: 
   );
 }
 
+const REVIEW_PROMPT_KEY = "gc_review_prompt";
+const REVIEW_URL = "https://apps.shopify.com/green-claims-by-paxworks#modal-show=ReviewListingModal";
+
+const LOCALE_NAMES: Record<string, string> = {
+  en: "English",
+  de: "German",
+  fr: "French",
+  es: "Spanish",
+  it: "Italian",
+};
+
 function DashboardPage() {
   const shop = useSearchParams().get("shop");
   const qs = useShopQuery();
@@ -237,6 +248,14 @@ function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  const [locale, setLocale] = useState<string | null>(null);
+  const [changingLocale, setChangingLocale] = useState(false);
+  // A language change queues its re-scan asynchronously, so for a moment
+  // the "latest scan" is still the previous, completed one. Remember its id
+  // so the poll doesn't mistake it for the new scan finishing.
+  const [reviewPromptHidden, setReviewPromptHidden] = useState(true);
+  const staleScanId = useRef<string | null>(null);
+  const staleTicks = useRef(0);
   // Captured at the moment a manual scan is triggered, from whether the
   // store had never been scanned at all — the "manual" triggered_by tag
   // Scan rows carry is identical for a genuine first scan (clicked from the
@@ -249,6 +268,13 @@ function DashboardPage() {
     api.listClaims().then(setClaims).catch((e: ApiError) => setError(e.message));
     api.listEvidence().then(setEvidenceDocs).catch(() => {});
     api.billingStatus().then(setBillingStatus).catch(() => {});
+    api.getLocale().then((r) => setLocale(r.locale)).catch(() => {});
+    try {
+      setReviewPromptHidden(localStorage.getItem(REVIEW_PROMPT_KEY) !== null);
+    } catch {
+      // Storage can be blocked inside the embedded iframe — stay hidden
+      // rather than nag on every load with no way to remember a dismissal.
+    }
     api
       .getLatestScan()
       .then((s) => {
@@ -263,6 +289,11 @@ function DashboardPage() {
     const interval = setInterval(async () => {
       try {
         const latest = await api.getLatestScan();
+        if (staleScanId.current && latest?.id === staleScanId.current && staleTicks.current < 20) {
+          staleTicks.current += 1;
+          return;
+        }
+        staleScanId.current = null;
         setScan(latest);
         if (latest?.completed_at) {
           setScanning(false);
@@ -286,6 +317,31 @@ function DashboardPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not start checkout.");
       setSubscribing(false);
+    }
+  }
+
+  function dismissReviewPrompt() {
+    setReviewPromptHidden(true);
+    try {
+      localStorage.setItem(REVIEW_PROMPT_KEY, String(Date.now()));
+    } catch {}
+  }
+
+  async function handleLocaleChange(next: string) {
+    setChangingLocale(true);
+    setError(null);
+    try {
+      await api.updateLocale(next);
+      staleScanId.current = scan?.id ?? null;
+      staleTicks.current = 0;
+      setLocale(next);
+      // The API queues a re-scan against the new language's term list;
+      // start polling for it like a manual scan.
+      setScanning(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update the scan language.");
+    } finally {
+      setChangingLocale(false);
     }
   }
 
@@ -386,13 +442,32 @@ function DashboardPage() {
             An overview of flagged environmental claims across your store.
           </p>
         </div>
-        <button
-          onClick={handleScanNow}
-          disabled={scanning}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-        >
-          {scanning ? "Scanning…" : "Re-scan now"}
-        </button>
+        <div className="flex items-center gap-3">
+          {locale && (
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Scan language
+              <select
+                value={locale}
+                disabled={changingLocale || scanning}
+                onChange={(e) => handleLocaleChange(e.target.value)}
+                className="rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-700 disabled:opacity-50"
+              >
+                {Object.entries(LOCALE_NAMES).map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            onClick={handleScanNow}
+            disabled={scanning}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {scanning ? "Scanning…" : "Re-scan now"}
+          </button>
+        </div>
       </div>
 
       <p className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -422,6 +497,35 @@ function DashboardPage() {
           </button>
         </div>
       )}
+
+      {billingStatus?.has_active_subscription &&
+        !reviewPromptHidden &&
+        !loading &&
+        claims?.some((c) => c.status !== "unsubstantiated") && (
+          <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-gray-200 bg-white px-4 py-3">
+            <p className="text-sm text-gray-700">
+              Finding Green Claims useful? A short review on the Shopify App Store helps other
+              merchants find it.
+            </p>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                onClick={dismissReviewPrompt}
+                className="text-xs text-gray-500 hover:underline"
+              >
+                No thanks
+              </button>
+              <a
+                href={REVIEW_URL}
+                target="_blank"
+                rel="noreferrer"
+                onClick={dismissReviewPrompt}
+                className="rounded-md bg-[#008060] px-4 py-2 text-sm font-medium text-white hover:bg-[#006e52]"
+              >
+                Leave a review
+              </a>
+            </div>
+          </div>
+        )}
 
       {error && <ErrorBanner message={error} />}
 
