@@ -41,12 +41,11 @@ export function Nav() {
     <nav className="sticky top-0 z-30 border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center gap-6 px-6">
         <a href="https://paxworks.io" target="_blank" rel="noreferrer" className="flex shrink-0 items-center gap-2 py-3">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true">
-            <circle cx="32" cy="32" r="32" fill="#F5A623" />
-            <rect x="19.0" y="9.6" width="6.4" height="44.8" rx="3.2" fill="#1A1A1A" />
-            <rect x="19.0" y="9.6" width="25.9" height="6.4" rx="3.2" fill="#1A1A1A" />
-            <rect x="19.0" y="32.0" width="25.9" height="6.4" rx="3.2" fill="#1A1A1A" />
-            <rect x="38.6" y="9.6" width="6.4" height="28.8" rx="3.2" fill="#1A1A1A" />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="14 14 90 90" width="24" height="24" aria-hidden="true">
+            <path d="M30 90 C28 52 52 28 94 26 C96 68 72 92 30 90 Z" fill="#4CAF7D" />
+            <path d="M30 90 L20 100" stroke="#4CAF7D" strokeWidth="8" strokeLinecap="round" />
+            <path d="M46 60 L57 71 L77 48" fill="none" stroke="#0B1520" strokeOpacity="0.75" strokeWidth="12.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M46 60 L57 71 L77 48" fill="none" stroke="#F5A623" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="text-sm font-semibold text-gray-900">
             Green Claims <span className="font-normal text-gray-400">by Paxworks</span>
