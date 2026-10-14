@@ -443,23 +443,6 @@ function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {locale && (
-            <label className="flex items-center gap-2 text-xs text-gray-500">
-              Scan language
-              <select
-                value={locale}
-                disabled={changingLocale || scanning}
-                onChange={(e) => handleLocaleChange(e.target.value)}
-                className="rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-700 disabled:opacity-50"
-              >
-                {Object.entries(LOCALE_NAMES).map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <button
             onClick={handleScanNow}
             disabled={scanning}
@@ -467,6 +450,22 @@ function DashboardPage() {
           >
             {scanning ? "Scanning…" : "Re-scan now"}
           </button>
+          {locale && (
+            <select
+              aria-label="Scan language"
+              title="Scan language"
+              value={locale}
+              disabled={changingLocale || scanning}
+              onChange={(e) => handleLocaleChange(e.target.value)}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {Object.entries(LOCALE_NAMES).map(([code, name]) => (
+                <option key={code} value={code}>
+                  Language: {name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
