@@ -229,6 +229,11 @@ function StatCard({ label, value, href }: { label: string; value: number; href: 
 const REVIEW_PROMPT_KEY = "gc_review_prompt";
 const REVIEW_URL = "https://apps.shopify.com/green-claims-by-paxworks#modal-show=ReviewListingModal";
 
+// Custom chevron so it can sit inset from the edge — a native select arrow
+// can't be repositioned with padding.
+const SELECT_ARROW =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E\")";
+
 const LOCALE_NAMES: Record<string, string> = {
   en: "English",
   de: "German",
@@ -457,7 +462,12 @@ function DashboardPage() {
               value={locale}
               disabled={changingLocale || scanning}
               onChange={(e) => handleLocaleChange(e.target.value)}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="appearance-none rounded-md border border-gray-300 bg-white bg-no-repeat py-2 pl-3 pr-9 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              style={{
+                backgroundImage: SELECT_ARROW,
+                backgroundPosition: "right 0.75rem center",
+                backgroundSize: "0.75rem",
+              }}
             >
               {Object.entries(LOCALE_NAMES).map(([code, name]) => (
                 <option key={code} value={code}>
